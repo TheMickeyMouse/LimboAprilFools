@@ -902,15 +902,16 @@ namespace Quasi::Algorithm {
     void ApplyPermutation(Span<T> array, Span<N> permutation) {
         for (usize i = 0; i < array.Length(); ++i) {
             N j = permutation[i];
-            bool done = Signed<N> ? (j < 0) : (j > NumInfo<IntoSigned<N>>::MAX);
-            while (!done) { // walk the cycle until we reach an already completed item
-                std::swap(array[i], array[j]);
+            if (bool done = Signed<N> ? (j < 0) : (j > NumInfo<IntoSigned<N>>::MAX)) continue;
+            const N initial = i;
+            while (j != initial) { // walk the cycle until we reach an already completed item
                 permutation[i] ^= -1; // mark as done
+                std::swap(array[i], array[j]);
                 i = j;
                 j = permutation[i];
-                done = Signed<N> ? (j < 0) : (j > NumInfo<IntoSigned<N>>::MAX);
             }
-            i = j; // continue where we left off, search for another cycle.
+            permutation[i] ^= -1;
+            i = initial;
         }
         // preserve the original permutation
         for (N& j : permutation) j ^= -1;
