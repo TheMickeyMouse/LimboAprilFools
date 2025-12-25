@@ -863,14 +863,14 @@ namespace Quasi::Algorithm {
         if (sizeof(T) * std::min(left, right) <= MAX_STACK_ARRAY_SIZE) {
             T* begin = mid - left;
             if (left < right) {
-                T* temp = _alloca(sizeof(T) * left);
+                T* temp = Memory::QAlloca$(T, left);
                 Memory::RangeConstructMoveNoOverlap(temp, begin, left);
                 Memory::RangeMove                  (begin, mid, right);
                 Memory::RangeMoveNoOverlap         (begin + right, temp, left);
             } else {
-                T* temp = _alloca(sizeof(T) * right);
+                T* temp = Memory::QAlloca$(T, right);
                 Memory::RangeConstructMoveNoOverlap(temp, mid, right);
-                Memory::RangeMove                  (mid, begin, left);
+                Memory::RangeMoveRev               (begin + right, begin, left);
                 Memory::RangeMoveNoOverlap         (begin, temp, right);
             }
         } else {

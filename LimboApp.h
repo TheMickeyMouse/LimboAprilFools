@@ -14,6 +14,7 @@ class LimboApp {
     class Permutation {
     public:
         virtual ~Permutation() = default;
+        virtual void Init(LimboApp& app) {}
         virtual void Anim(LimboApp& app, float dt) = 0;
         virtual void Finish(LimboApp& app) {}
     };
@@ -42,28 +43,52 @@ public:
 
     static Math::fv2 Project(Math::fv2 position, float z);
 
+    void DrawKey(Math::fv2 pos, float scale, int colorIndex);
     void DrawKey(int index, float scale = 200, int overrideColorIndex = -1);
     void DrawKeys();
 
     void ResetKeyPos();
     void LerpKeyPos();
     void SetSpinningKeys();
-    void PerformPermutation(Str newPerm);
 
     class ShufflePerm : public Permutation {
         int indices[8] {};
     public:
         explicit ShufflePerm(Str permutation);
         ~ShufflePerm() override = default;
+        void Init(LimboApp& app) override;
+        void Anim(LimboApp& app, float dt) override;
+    };
+
+    class RotatePerm : public Permutation {
+        bool clockwise = true, cellwise = false;
+        float currentRotation = 0.0f;
+    public:
+        explicit RotatePerm(bool clockwise, bool cellwise) : clockwise(clockwise), cellwise(cellwise) {}
+        ~RotatePerm() override = default;
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
     };
 
-    class RotatePerm : public Permutation {
-        float currentRotation = 0.0f;
+    class ShiftPerm : public Permutation {
+        // directions are as follows:
+        //      0 1 2 3
+        //      ^ ^ ^ ^
+        // 11 < A B C D > 4
+        // 10 < E F G H > 5
+        //      v v v v
+        //      9 8 7 6
+        int direction = 0;
+        int stride = 0;
+        int warpSrcIndex = 0;
+        int warpDestIndex = 0;
+        float time = 0.0f;
+        OptRef<LimboKey> warpKey = nullptr;
+        Math::fv2 offset;
     public:
-        explicit RotatePerm() = default;
-        ~RotatePerm() override = default;
+        explicit ShiftPerm(int dir) : direction(dir) {}
+        ~ShiftPerm() override = default;
+        void Init(LimboApp& app) override;
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
     };
