@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(LimboFools main.cpp
         LimboApp.cpp
-        LimboApp.h)
+        LimboApp.h
+        miniaudio/miniaudio.cpp)
 
 add_subdirectory(OpenGLPort)
 add_subdirectory(Quasi)

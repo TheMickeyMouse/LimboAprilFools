@@ -1,29 +1,54 @@
 #include "LimboApp.h"
+#include "LimboApp.h"
+#include "LimboApp.h"
+#include "LimboApp.h"
 #include "Utils/Algorithm.h"
 
 // A B C D
 // E F G H
-#define P_SWAP_ROWS  "EFGHABCD"
-#define P_SWAP_COLS  "BADCFEHG"
 #define P_SHIFT_CW   "EABCFGHD"
 #define P_SHIFT_CCW  "BCDHAEFG"
 #define P_EASY_SHIFT "ECBHAGFD"
+#define P_DIAG_SWAP  "FEHGBADC"
 #define P_CYCLE_CELL_CW  { 1, 5, 6, 2, 0, 4, 7, 3 }
 #define P_CYCLE_CELL_CCW { 4, 0, 3, 7, 5, 1, 2, 6 }
+#define P_SWAP_CELLS     { 2, 3, 0, 1, 6, 7, 4, 5 }
+#define LEFT_CELLS  { 0, 1, 4, 5 }
+#define RIGHT_CELLS { 2, 3, 6, 7 }
+
+float Sigmoid(float x) {
+    return 1.0f / (1.0f + std::exp(x));
+}
+
+float Clamp(float x) {
+    return std::clamp(x, 0.0f, 1.0f);
+}
+
+float CubicEase(float x) {
+    x = Clamp(x);
+    return x * x * (3.0f - 2.0f * x);
+}
 
 const Math::fv2 LimboApp::ORIGIN = { WIDTH / 2, HEIGHT / 2 };
 const Math::fv2 LimboApp::TARGET_POSITIONS[8] = {
-    { WIDTH * 0.2f, HEIGHT * 0.65f },
-    { WIDTH * 0.4f, HEIGHT * 0.65f },
-    { WIDTH * 0.6f, HEIGHT * 0.65f },
-    { WIDTH * 0.8f, HEIGHT * 0.65f },
-    { WIDTH * 0.2f, HEIGHT * 0.35f },
-    { WIDTH * 0.4f, HEIGHT * 0.35f },
-    { WIDTH * 0.6f, HEIGHT * 0.35f },
-    { WIDTH * 0.8f, HEIGHT * 0.35f },
+    { WIDTH * 0.2f, HEIGHT * 0.5f + WIDTH * 0.1f },
+    { WIDTH * 0.4f, HEIGHT * 0.5f + WIDTH * 0.1f },
+    { WIDTH * 0.6f, HEIGHT * 0.5f + WIDTH * 0.1f },
+    { WIDTH * 0.8f, HEIGHT * 0.5f + WIDTH * 0.1f },
+    { WIDTH * 0.2f, HEIGHT * 0.5f - WIDTH * 0.1f },
+    { WIDTH * 0.4f, HEIGHT * 0.5f - WIDTH * 0.1f },
+    { WIDTH * 0.6f, HEIGHT * 0.5f - WIDTH * 0.1f },
+    { WIDTH * 0.8f, HEIGHT * 0.5f - WIDTH * 0.1f },
 };
 
+void LimboApp::Permutation::Anim(LimboApp& app, float dt) {
+    time += dt / duration;
+}
+
 LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH, (int)HEIGHT }, { .transparent = true })) {
+    if (ma_engine_init(nullptr, &audioEngine) != MA_SUCCESS) {
+        Debug::QError$("Miniaudio Failed to Load!");
+    }
     // const Graphics::TextureLoadParams params = { .pixelated = true };
     texKeyHigh    = Graphics::Texture2D::LoadPNG("../keyhighfix.png");
     texKeyMain    = Graphics::Texture2D::LoadPNG("../keymainfix.png");
@@ -40,34 +65,56 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
 
     ResetKeyPos();
 
-#define FACTORY(X) [] () -> Box<Permutation> { return X; }
-    {
-        permutations = Vecs::New((Box<Permutation>(*[])()) {
-            FACTORY(Box<ShiftPerm>::Build(0)),
-            FACTORY(Box<ShiftPerm>::Build(1)),
-            FACTORY(Box<ShiftPerm>::Build(2)),
-            FACTORY(Box<ShiftPerm>::Build(3)),
-            FACTORY(Box<ShiftPerm>::Build(4)),
-            FACTORY(Box<ShiftPerm>::Build(5)),
-            FACTORY(Box<ShiftPerm>::Build(6)),
-            FACTORY(Box<ShiftPerm>::Build(7)),
-            FACTORY(Box<ShiftPerm>::Build(8)),
-            FACTORY(Box<ShiftPerm>::Build(9)),
-            FACTORY(Box<ShiftPerm>::Build(10)),
-            FACTORY(Box<ShiftPerm>::Build(11)),
-            FACTORY(Box<ShufflePerm>::Build(P_EASY_SHIFT)),
-            FACTORY(Box<ShiftPerm>::Build(0)),
-            FACTORY(Box<RotatePerm>::Build(false, true)),
-            FACTORY(Box<ShufflePerm>::Build(P_SWAP_COLS)),
-            FACTORY(Box<RotatePerm>::Build(true, true)),
-            FACTORY(Box<ShufflePerm>::Build(P_SHIFT_CCW)),
-            FACTORY(Box<RotatePerm>::Build(false, false)),
-            FACTORY(Box<ShufflePerm>::Build(P_SWAP_ROWS)),
-            FACTORY(Box<RotatePerm>::Build(true, false)),
-        });
-    }
+    // A B C D
+    // E F G H
+
+    static constexpr float INV_SPEED = 1.0f;
+    permutations = Vecs::New((Box<Permutation>[]) {
+        Box<ShufflePerm>  ::Build("FGHCEABD",   0.28f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(false,        0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.28f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(true,         0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("EGHCFABD",   0.28f * INV_SPEED),
+        Box<DepthSwapPerm>::Build(true,         0.60f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAFGHE",   0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("FGDHAEBC",   0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("EAFHBCDG",   0.28f * INV_SPEED),
+        Box<RotatePerm>   ::Build(false,        0.66f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BEDHAGFC",   0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAFGHE",   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("DABCHEFG",   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_EASY_SHIFT, 0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("FGHCAEBD",   0.25f * INV_SPEED),
+        // Box<ShufflePerm>  ::Build("FGHCAEBD",   0.25f * INV_SPEED),
+        // Box<ShufflePerm>  ::Build("EFGHABCD",   0.25f * INV_SPEED),
+        Box<DepthSwapPerm>::Build(false,        0.50f * INV_SPEED),
+        Box<RotatePerm>   ::Build(true,         0.45f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(true,         0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAHEFG",   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAHEFG",   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
+    });
 
     Graphics::Render::UseBlendFunc(Graphics::BlendFactor::ONE, Graphics::BlendFactor::INVERT_SRC_ALPHA);
+
+    ma_result result = ma_sound_init_from_file(&audioEngine, "../LimboMus.wav", 0, nullptr, nullptr, &music);
+    if (result != MA_SUCCESS) {
+        Debug::QError$("Failed to play Sound!");
+    }
+    static constexpr int SAMPLE_RATE = 44100;
+    static constexpr int SKIP_FRAME_COUNT = (int)(10.28 * SAMPLE_RATE);
+    ma_sound_seek_to_pcm_frame(&music, SKIP_FRAME_COUNT);
+    ma_sound_start(&music);
+}
+
+LimboApp::~LimboApp() {
+    ma_engine_uninit(&audioEngine);
 }
 
 bool LimboApp::Run() {
@@ -89,12 +136,14 @@ bool LimboApp::Run() {
         return false;
     }
 
-    if (io.Keyboard.KeyOnPress(IO::Key::P)) {
-        if (currentPerm) currentPerm->Finish(*this);
+    if (!currentPerm || (frame < permutations.Length() && currentPerm->Done())) {
+        if (currentPerm) {
+            currentPerm->Finish(*this);
+        }
         ResetKeyPos();
-        currentPerm = permutations[frame]();
+        currentPerm = permutations[frame].AsRef();
         currentPerm->Init(*this);
-        ++frame %= permutations.Length();
+        ++frame;
     }
 
     canvas.EndFrame();
@@ -103,10 +152,12 @@ bool LimboApp::Run() {
 }
 
 void LimboApp::DrawKey(Math::fv2 pos, float scale, int colorIndex) {
-    canvas.DrawTextureW(texKeyMain,    pos, scale, true, { .tint = colorPalette[colorIndex][0] });
-    canvas.DrawTextureW(texKeyHigh,    pos, scale, true, { .tint = colorPalette[colorIndex][1] });
-    canvas.DrawTextureW(texKeyShadow,  pos, scale, true, { .tint = colorPalette[colorIndex][2] });
-    canvas.DrawTextureW(texKeyOutline, pos, scale);
+    canvas.transform = Math::Transform2D(pos, 1, Math::Radians(globalRotation));
+    canvas.DrawTextureW(texKeyMain,    0, scale, true, { .tint = colorPalette[colorIndex][0] });
+    canvas.DrawTextureW(texKeyHigh,    0, scale, true, { .tint = colorPalette[colorIndex][1] });
+    canvas.DrawTextureW(texKeyShadow,  0, scale, true, { .tint = colorPalette[colorIndex][2] });
+    canvas.DrawTextureW(texKeyOutline, 0, scale);
+    canvas.transform.Reset();
 }
 
 void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
@@ -119,7 +170,7 @@ void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
 void LimboApp::DrawKeys() {
     for (int i = 0; i < 8; i++) { // back keys
         if (keys[i].z < Z_CENTER) continue;
-        DrawKey(i, 200, i);
+        DrawKey(i, KEY_SIZE, 0);
     }
 
     // canvas.Stroke(Math::fColor::White());
@@ -127,7 +178,7 @@ void LimboApp::DrawKeys() {
 
     for (int i = 0; i < 8; i++) { // front keys
         if (keys[i].z >= Z_CENTER) continue;
-        DrawKey(i, 200, i);
+        DrawKey(i, KEY_SIZE, 0);
     }
 }
 
@@ -142,7 +193,7 @@ void LimboApp::ResetKeyPos() {
 void LimboApp::LerpKeyPos() {
     for (int i = 0; i < 8; ++i) {
         const int j = keyPermutation[i];
-        keys[j].position.LerpToward(TARGET_POSITIONS[i], 0.15f);
+        keys[j].position.LerpToward(TARGET_POSITIONS[i], 0.1f);
     }
 }
 
@@ -178,94 +229,86 @@ void LimboApp::SetSpinningKeys() {
 }
 
 
-LimboApp::ShufflePerm::ShufflePerm(Str permutation) {
+LimboApp::ShufflePerm::ShufflePerm(Str permutation, float dura) : Permutation(dura) {
     // perform standard permutation
     for (int i = 0; i < 8; i++) indices[i] = permutation[i] - 'A';
 }
 
-void LimboApp::ShufflePerm::Init(LimboApp& app) {
-    Permutation::Init(app);
-    Algorithm::ApplyPermutation(app.keyPermutation.AsSpan(), Spans::Vals(indices));
-}
-
 void LimboApp::ShufflePerm::Anim(LimboApp& app, float dt) {
-    for (int i = 0; i < 8; ++i) {
-        const int j = app.keyPermutation[i];
-        app.keys[j].position.LerpToward(TARGET_POSITIONS[i], 0.15f);
+    Permutation::Anim(app, dt);
+    app.LerpKeyPos();
+    for (int i = 0; i < 8; i++) {
+        app.keys[app.keyPermutation[i]].position = TARGET_POSITIONS[i].Lerp(TARGET_POSITIONS[indices[i]], Sigmoid(10.0f * (time - 0.5f)));
     }
 }
 
+void LimboApp::ShufflePerm::Finish(LimboApp& app) {
+    Permutation::Finish(app);
+    Algorithm::ApplyPermutation(app.keyPermutation.AsSpan(), Spans::Vals(indices));
+}
+
+void LimboApp::CyclicPerm::Anim(LimboApp& app, float dt) {
+    Permutation::Anim(app, dt);
+    const float angle = CubicEase(time) * Math::HALF_PI;
+    const Math::Rotor2D rotation = Math::Radians(-f32s::Signed(clockwise, angle));
+
+    const Math::fv2 L_ORIGIN = { WIDTH * 0.3f, HEIGHT * 0.5f };
+    for (int i : LEFT_CELLS) {
+        auto& key = app.keys[app.keyPermutation[i]];
+        key.position = L_ORIGIN + (TARGET_POSITIONS[i] - L_ORIGIN).RotateBy(rotation);
+    }
+    const Math::fv2 R_ORIGIN = { WIDTH * 0.7f, HEIGHT * 0.5f };
+    for (int i : RIGHT_CELLS) {
+        auto& key = app.keys[app.keyPermutation[i]];
+        key.position = R_ORIGIN + (TARGET_POSITIONS[i] - R_ORIGIN).RotateBy(-rotation);
+    }
+}
+
+void LimboApp::CyclicPerm::Finish(LimboApp& app) {
+    Permutation::Finish(app);
+    Algorithm::ApplyPermutation(
+        app.keyPermutation.AsSpan(),
+        clockwise ? Spans::Vals(P_CYCLE_CELL_CW) : Spans::Vals(P_CYCLE_CELL_CCW)
+    );
+}
+
 void LimboApp::RotatePerm::Anim(LimboApp& app, float dt) {
-    const float lerpAngle = std::min((Math::PI - currentRotation) * 0.1f, Math::PI * dt * 2.0f);
-    currentRotation += lerpAngle;
-    const Math::Rotor2D rotDiff = Math::Radians(-f32s::Signed(clockwise, lerpAngle));
-    if (cellwise) {
-        const Math::fv2 LEFT_ORIGIN = { WIDTH * 0.3f, HEIGHT * 0.5f };
-        for (int i : { 0, 1, 4, 5 }) {
-            auto& key = app.keys[app.keyPermutation[i]];
-            key.position = LEFT_ORIGIN + (key.position - LEFT_ORIGIN).RotateBy(rotDiff);
+    Permutation::Anim(app, dt);
+    const float angle = CubicEase(time) * Math::PI;
+    const Math::Rotor2D rotDiff = Math::Radians(-angle);
+
+    app.globalRotation -= angle - currentAngle;
+    currentAngle = angle;
+    const Math::fv2 ROTATION_ORIGIN = { WIDTH * 0.5f, HEIGHT * 0.5f };
+
+    for (int i = 0; i < 8; ++i) {
+        auto& key = app.keys[app.keyPermutation[i]];
+        if (i % 4 == (reverse ? 0 : 3)) {
+            key.position = TARGET_POSITIONS[i].Lerp(TARGET_POSITIONS[(i + (reverse ? 3 : 1)) % 8], 1 - Sigmoid(10 * (time - 0.5f)));
+        } else {
+            key.position = ROTATION_ORIGIN + (TARGET_POSITIONS[i] - ROTATION_ORIGIN).RotateBy(rotDiff);
         }
-        const Math::fv2 RIGHT_ORIGIN = { WIDTH * 0.7f, HEIGHT * 0.5f };
-        for (int i : { 2, 3, 6, 7 }) {
-            auto& key = app.keys[app.keyPermutation[i]];
-            key.position = RIGHT_ORIGIN + (key.position - RIGHT_ORIGIN).RotateBy(-rotDiff);
-        }
-    } else {
-        const float t = currentRotation / Math::PI;
-        const float z = 1 + 2 * t * (1 - t);
-        for (auto& key : app.keys) {
-            key.position = ORIGIN + (key.position - ORIGIN).RotateBy(rotDiff);
-            key.z = z;
-        }
+        // key.z = z;
     }
 }
 
 void LimboApp::RotatePerm::Finish(LimboApp& app) {
     Permutation::Finish(app);
-    if (cellwise) {
-        Algorithm::ApplyPermutation(
-            app.keyPermutation.AsSpan(),
-            clockwise ? Spans::Vals(P_CYCLE_CELL_CW) : Spans::Vals(P_CYCLE_CELL_CCW)
-        );
-    } else {
-        app.keyPermutation.Reverse();
-    }
+    app.keyPermutation.Reverse();
 }
 
-void LimboApp::ShiftPerm::Init(LimboApp& app) {
-    Permutation::Init(app);
-    const bool horizontal = 0b110000110000 & (1 << direction), positive = direction < 6;
-    stride = i32s::Signed(positive, horizontal ? -1 : 4);
-    // A B C D D H H G F E E A
-    warpSrcIndex  = (const int[13]) { 0, 1, 2, 3, 3, 7, 7, 6, 5, 4, 4, 0 } [direction];
-    // E F G H A E D C B A H D
-    warpDestIndex = (const int[13]) { 4, 5, 6, 7, 0, 4, 3, 2, 1, 0, 7, 3 } [direction];
-
-    warpKey = app.keys[app.keyPermutation[warpSrcIndex]];
-    // phantomKey = TARGET_POSITIONS[warpSrcIndex];
-    offset = horizontal ? Math::fv2 { f32s::Signed(positive, WIDTH), 0 } :
-                          Math::fv2 { 0, f32s::Signed(positive, HEIGHT) };
-    // warpKey->position -= off;
-    // phantomDest = phantomKey + off;
-}
-
-void LimboApp::ShiftPerm::Anim(LimboApp& app, float dt) {
-    time += dt;
-    static constexpr float INIT_Y = 0.00247875217667f, S = 15.9784934032;
-    app.DrawKey(TARGET_POSITIONS[warpSrcIndex] + offset * (S * (std::exp(11 * time - 6) - INIT_Y)), 200.0f, 0);
-
-    for (int i = warpSrcIndex + stride; i != warpDestIndex + stride; i += stride) {
+void LimboApp::DepthSwapPerm::Anim(LimboApp& app, float dt) {
+    Permutation::Anim(app, dt);
+    const float dx = WIDTH * 0.4f * Sigmoid(20 * time - 8),
+                dz = Sigmoid(20 * time - 3) - Sigmoid(20 * time - 16);
+    for (int i = 0; i < 8; ++i) {
         auto& key = app.keys[app.keyPermutation[i]];
-        key.position.LerpToward(TARGET_POSITIONS[i - stride], 0.15f);
+        key.z = Z_CENTER * (1 + ((i % 4 < 2) == reverse ? 0.2f : -0.5f) * dz);
+        key.position = TARGET_POSITIONS[i] + Math::fv2 { (i % 4 < 2 ? dx : -dx), 0 };
     }
-    warpKey->position = TARGET_POSITIONS[warpDestIndex] - offset * (S * std::max((std::exp(-2.4f - 11 * time) - INIT_Y), 0.0f));
 }
 
-void LimboApp::ShiftPerm::Finish(LimboApp& app) {
+void LimboApp::DepthSwapPerm::Finish(LimboApp& app) {
     Permutation::Finish(app);
-    if (std::abs(stride) == 1) { // horizontal shift
-        app.keyPermutation.SubspanMut(warpSrcIndex - (warpSrcIndex % 4), 4).RotateSigned(-stride);
-    } else {
-        std::swap(app.keyPermutation[warpSrcIndex], app.keyPermutation[warpDestIndex]);
-    }
+    Algorithm::ApplyPermutation(app.keyPermutation.AsSpan(), Spans::Vals(P_SWAP_CELLS));
 }
