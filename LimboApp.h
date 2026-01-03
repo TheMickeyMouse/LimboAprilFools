@@ -14,14 +14,13 @@ class LimboApp {
     class Permutation {
     protected:
         float time = 0.0f;
-    public:
         float duration = 1.0f;
-
+        Array<int, 8> resultingPermutation;
+    public:
         explicit Permutation(float dura) : time(-1.0f / (60 * dura)), duration(dura) {}
         virtual ~Permutation() = default;
-        virtual void Init(LimboApp& app) {}
         virtual void Anim(LimboApp& app, float dt);
-        virtual void Finish(LimboApp& app) {}
+        void Finish(LimboApp& app);
 
         bool Done() const { return time > 1.0f; }
     };
@@ -38,13 +37,14 @@ class LimboApp {
     Array<int, 8> keyPermutation = { 0, 1, 2, 3, 4, 5, 6, 7 };
     usize frame = 0;
     f32 globalRotation = 0.0f;
+    bool showColors = false;
 
     // this is a list of factories
     Vec<Box<Permutation>> permutations;
     OptRef<Permutation> currentPerm = nullptr;
     static const Math::fv2 TARGET_POSITIONS[8];
 
-    Graphics::Texture2D texKeyMain, texKeyHigh, texKeyShadow, texKeyOutline;
+    Graphics::Texture2D texKeyMain, texKeyHigh, texKeyShadow, texKeyOutline, texGlow;
     Math::fColor colorPalette[8][3];
 public:
     LimboApp();
@@ -60,42 +60,39 @@ public:
 
     void ResetKeyPos();
     void LerpKeyPos();
+    // indices is the array of 'what each key is replaced with'
+    void ShuffleKeys(Span<int> indices);
     void SetSpinningKeys();
 
     class ShufflePerm : public Permutation {
-        int indices[8] {};
     public:
         explicit ShufflePerm(Str permutation, float dura);
         ~ShufflePerm() override = default;
         void Anim(LimboApp& app, float dt) override;
-        void Finish(LimboApp& app) override;
     };
 
     class CyclicPerm : public Permutation {
-        bool clockwise = true;
+        bool ccw = true;
     public:
-        explicit CyclicPerm(bool clockwise, float dura) : Permutation(dura), clockwise(clockwise) {}
+        explicit CyclicPerm(bool ccw, float dura);
         ~CyclicPerm() override = default;
         void Anim(LimboApp& app, float dt) override;
-        void Finish(LimboApp& app) override;
     };
 
     class RotatePerm : public Permutation {
         bool reverse = false;
         float currentAngle = 0.0f;
     public:
-        explicit RotatePerm(bool reverse, float dura) : Permutation(dura), reverse(reverse) {}
+        explicit RotatePerm(bool reverse, float dura);
         ~RotatePerm() override = default;
         void Anim(LimboApp& app, float dt) override;
-        void Finish(LimboApp& app) override;
     };
 
     class DepthSwapPerm : public Permutation {
         bool reverse;
     public:
-        explicit DepthSwapPerm(bool reverse, float dura) : Permutation(dura), reverse(reverse) {}
+        explicit DepthSwapPerm(bool reverse, float dura);
         ~DepthSwapPerm() override = default;
         void Anim(LimboApp& app, float dt) override;
-        void Finish(LimboApp& app) override;
     };
 };

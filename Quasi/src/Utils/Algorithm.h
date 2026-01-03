@@ -898,23 +898,110 @@ namespace Quasi::Algorithm {
         }
     }
 
+    // gets the next permutation succeeding it
+    // returns false if there is no next permutation and it has to loop back
+    template <class T>
+    bool NextPermutation(Span<T> permutation) {
+        // very cool algorithm,
+        // go to https://stackoverflow.com/a/11483392 for very cool answer
+        if (permutation.Length() < 2) return false;
+
+        usize i = permutation.Length() - 1;
+        while (true) {
+            usize j = i--; // j is the item after i
+            if (permutation[i] < permutation[j]) { // ascending, means all previous elms were descending
+                // find first larger than i
+                usize k = permutation.Length();
+                while (permutation[--k] < permutation[i]) {}
+                std::swap(permutation[i], permutation[k]);
+                permutation.Skip(j).Reverse();
+                return true;
+            }
+            if (i == 0) {
+                permutation.Reverse();
+                return false;
+            }
+        }
+    }
+
+    // gets the previous permutation preceding it
+    // returns false if there is no previous permutation and it has to underflow
+    template <class T>
+    bool PrevPermutation(Span<T> permutation) {
+        if (permutation.Length() < 2) return false;
+
+        usize i = permutation.Length() - 1;
+        while (true) {
+            usize j = i--;
+            if (permutation[j] < permutation[i]) {
+                usize k = permutation.Length();
+                while (permutation[--k] > permutation[i]) {}
+                std::swap(permutation[i], permutation[k]);
+                permutation.Skip(j).Reverse();
+                return true;
+            }
+
+            if (i == 0) {
+                permutation.Reverse();
+                return false;
+            }
+        }
+    }
+
+    // permutes the array where destIndices the elements where to go
     template <class T, Integer N>
-    void ApplyPermutation(Span<T> array, Span<N> permutation) {
+    void ApplyPermutationInPlace(Span<T> array, Span<N> destIndices) {
         for (usize i = 0; i < array.Length(); ++i) {
-            N j = permutation[i];
+            N j = destIndices[i];
             if (bool done = Signed<N> ? (j < 0) : (j > NumInfo<IntoSigned<N>>::MAX)) continue;
             const N initial = i;
             while (j != initial) { // walk the cycle until we reach an already completed item
-                permutation[i] ^= -1; // mark as done
-                std::swap(array[i], array[j]);
+                destIndices[i] ^= -1; // mark as done
+                std::swap(array[initial], array[j]);
                 i = j;
-                j = permutation[i];
+                j = destIndices[i];
             }
-            permutation[i] ^= -1;
+            destIndices[i] ^= -1;
             i = initial;
         }
         // preserve the original permutation
-        for (N& j : permutation) j ^= -1;
+        for (N& j : destIndices) j ^= -1;
+    }
+
+    // permutes the array where srcIndices tells each element from which to take from
+    template <class T, Integer N>
+    void ApplyRevPermutationInPlace(Span<T> array, Span<N> srcIndices) {
+        for (usize i = 0; i < array.Length(); ++i) {
+            N j = srcIndices[i];
+            if (bool done = Signed<N> ? (j < 0) : (j > NumInfo<IntoSigned<N>>::MAX)) continue;
+            const N initial = i;
+            while (j != initial) { // walk the cycle until we reach an already completed item
+                srcIndices[i] ^= -1; // mark as done
+                std::swap(array[i], array[j]);
+                i = j;
+                j = srcIndices[i];
+            }
+            srcIndices[i] ^= -1;
+            i = initial;
+        }
+        // preserve the original permutation
+        for (N& j : srcIndices) j ^= -1;
+    }
+
+    // permutes the array where destIndices tells the input array where to go in the output array
+    template <class T, Integer N>
+    void ApplyPermutation(Span<const T> input, Span<T> output, Span<N> destIndices) {
+        for (usize i = 0; i < input.Length(); ++i) {
+            output[destIndices[i]] = input[i];
+        }
+    }
+
+    // permutes the array where srcIndices tells the output array where read from in the input array
+    template <class T, Integer N>
+    void ApplyRevPermutation(Span<const T> input, Span<T> output, Span<N> srcIndices) {
+        for (usize i = 0; i < input.Length(); ++i) {
+            output[i] = input[srcIndices[i]];
+        }
     }
 }
 

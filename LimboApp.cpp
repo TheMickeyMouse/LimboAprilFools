@@ -1,7 +1,4 @@
 #include "LimboApp.h"
-#include "LimboApp.h"
-#include "LimboApp.h"
-#include "LimboApp.h"
 #include "Utils/Algorithm.h"
 
 // A B C D
@@ -13,11 +10,12 @@
 #define P_CYCLE_CELL_CW  { 1, 5, 6, 2, 0, 4, 7, 3 }
 #define P_CYCLE_CELL_CCW { 4, 0, 3, 7, 5, 1, 2, 6 }
 #define P_SWAP_CELLS     { 2, 3, 0, 1, 6, 7, 4, 5 }
+#define P_REVERSE        { 7, 6, 5, 4, 3, 2, 1, 0 }
 #define LEFT_CELLS  { 0, 1, 4, 5 }
 #define RIGHT_CELLS { 2, 3, 6, 7 }
 
 float Sigmoid(float x) {
-    return 1.0f / (1.0f + std::exp(x));
+    return 1.0f / (1.0f + std::exp(-x));
 }
 
 float Clamp(float x) {
@@ -45,6 +43,10 @@ void LimboApp::Permutation::Anim(LimboApp& app, float dt) {
     time += dt / duration;
 }
 
+void LimboApp::Permutation::Finish(LimboApp& app) {
+    app.ShuffleKeys(resultingPermutation);
+}
+
 LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH, (int)HEIGHT }, { .transparent = true })) {
     if (ma_engine_init(nullptr, &audioEngine) != MA_SUCCESS) {
         Debug::QError$("Miniaudio Failed to Load!");
@@ -54,6 +56,7 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
     texKeyMain    = Graphics::Texture2D::LoadPNG("../keymainfix.png");
     texKeyShadow  = Graphics::Texture2D::LoadPNG("../keyshadowfix.png");
     texKeyOutline = Graphics::Texture2D::LoadPNG("../keyoutline.png");
+    texGlow       = Graphics::Texture2D::LoadPNG("../glow.png");
     Graphics::Image colorSrc = Graphics::Image::LoadPNG("../colorpalette.png");
 
     for (int i = 0; i < 8; ++i) {
@@ -87,15 +90,13 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
         Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_EASY_SHIFT, 0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build("FGHCAEBD",   0.25f * INV_SPEED),
-        // Box<ShufflePerm>  ::Build("FGHCAEBD",   0.25f * INV_SPEED),
-        // Box<ShufflePerm>  ::Build("EFGHABCD",   0.25f * INV_SPEED),
         Box<DepthSwapPerm>::Build(false,        0.50f * INV_SPEED),
         Box<RotatePerm>   ::Build(true,         0.45f * INV_SPEED),
         Box<CyclicPerm>   ::Build(true,         0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("BCDAHEFG",   0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("BCDAHEFG",   0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_EASY_SHIFT, 0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
@@ -136,13 +137,16 @@ bool LimboApp::Run() {
         return false;
     }
 
+    if (io.Keyboard.KeyOnPress(IO::Key::C)) {
+        showColors = !showColors;
+    }
+
     if (!currentPerm || (frame < permutations.Length() && currentPerm->Done())) {
         if (currentPerm) {
             currentPerm->Finish(*this);
         }
         ResetKeyPos();
         currentPerm = permutations[frame].AsRef();
-        currentPerm->Init(*this);
         ++frame;
     }
 
@@ -157,6 +161,7 @@ void LimboApp::DrawKey(Math::fv2 pos, float scale, int colorIndex) {
     canvas.DrawTextureW(texKeyHigh,    0, scale, true, { .tint = colorPalette[colorIndex][1] });
     canvas.DrawTextureW(texKeyShadow,  0, scale, true, { .tint = colorPalette[colorIndex][2] });
     canvas.DrawTextureW(texKeyOutline, 0, scale);
+    canvas.DrawTextureW(texGlow,       0, scale, true, { .tint = colorPalette[colorIndex][0].AddAlpha(0.2f) });
     canvas.transform.Reset();
 }
 
@@ -170,7 +175,7 @@ void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
 void LimboApp::DrawKeys() {
     for (int i = 0; i < 8; i++) { // back keys
         if (keys[i].z < Z_CENTER) continue;
-        DrawKey(i, KEY_SIZE, 0);
+        DrawKey(i, KEY_SIZE, showColors * i);
     }
 
     // canvas.Stroke(Math::fColor::White());
@@ -178,7 +183,7 @@ void LimboApp::DrawKeys() {
 
     for (int i = 0; i < 8; i++) { // front keys
         if (keys[i].z >= Z_CENTER) continue;
-        DrawKey(i, KEY_SIZE, 0);
+        DrawKey(i, KEY_SIZE, showColors * i);
     }
 }
 
@@ -195,6 +200,10 @@ void LimboApp::LerpKeyPos() {
         const int j = keyPermutation[i];
         keys[j].position.LerpToward(TARGET_POSITIONS[i], 0.1f);
     }
+}
+
+void LimboApp::ShuffleKeys(Span<int> indices) {
+    Algorithm::ApplyRevPermutationInPlace(keyPermutation.AsSpan(), indices);
 }
 
 Math::fv2 LimboApp::Project(Math::fv2 position, float z) {
@@ -231,26 +240,31 @@ void LimboApp::SetSpinningKeys() {
 
 LimboApp::ShufflePerm::ShufflePerm(Str permutation, float dura) : Permutation(dura) {
     // perform standard permutation
-    for (int i = 0; i < 8; i++) indices[i] = permutation[i] - 'A';
+    for (int i = 0; i < 8; i++) resultingPermutation[i] = permutation[i] - 'A';
+
 }
 
 void LimboApp::ShufflePerm::Anim(LimboApp& app, float dt) {
     Permutation::Anim(app, dt);
-    app.LerpKeyPos();
-    for (int i = 0; i < 8; i++) {
-        app.keys[app.keyPermutation[i]].position = TARGET_POSITIONS[i].Lerp(TARGET_POSITIONS[indices[i]], Sigmoid(10.0f * (time - 0.5f)));
+    const float s = Sigmoid(10.0f * (time - 0.5f));
+    for (int i = 0; i < 8; ++i) {
+        const int j = resultingPermutation[i];
+        app.keys[app.keyPermutation[j]].position = TARGET_POSITIONS[j].Lerp(TARGET_POSITIONS[i], s);
     }
 }
 
-void LimboApp::ShufflePerm::Finish(LimboApp& app) {
-    Permutation::Finish(app);
-    Algorithm::ApplyPermutation(app.keyPermutation.AsSpan(), Spans::Vals(indices));
+LimboApp::CyclicPerm::CyclicPerm(bool ccw, float dura) : Permutation(dura), ccw(ccw) {
+    if (ccw) {
+        resultingPermutation = P_CYCLE_CELL_CCW;
+    } else {
+        resultingPermutation = P_CYCLE_CELL_CW;
+    }
 }
 
 void LimboApp::CyclicPerm::Anim(LimboApp& app, float dt) {
     Permutation::Anim(app, dt);
     const float angle = CubicEase(time) * Math::HALF_PI;
-    const Math::Rotor2D rotation = Math::Radians(-f32s::Signed(clockwise, angle));
+    const Math::Rotor2D rotation = Math::Radians(-f32s::Signed(ccw, angle));
 
     const Math::fv2 L_ORIGIN = { WIDTH * 0.3f, HEIGHT * 0.5f };
     for (int i : LEFT_CELLS) {
@@ -264,12 +278,8 @@ void LimboApp::CyclicPerm::Anim(LimboApp& app, float dt) {
     }
 }
 
-void LimboApp::CyclicPerm::Finish(LimboApp& app) {
-    Permutation::Finish(app);
-    Algorithm::ApplyPermutation(
-        app.keyPermutation.AsSpan(),
-        clockwise ? Spans::Vals(P_CYCLE_CELL_CW) : Spans::Vals(P_CYCLE_CELL_CCW)
-    );
+LimboApp::RotatePerm::RotatePerm(bool reverse, float dura) : Permutation(dura), reverse(reverse) {
+    resultingPermutation = P_REVERSE;
 }
 
 void LimboApp::RotatePerm::Anim(LimboApp& app, float dt) {
@@ -281,10 +291,11 @@ void LimboApp::RotatePerm::Anim(LimboApp& app, float dt) {
     currentAngle = angle;
     const Math::fv2 ROTATION_ORIGIN = { WIDTH * 0.5f, HEIGHT * 0.5f };
 
+    const float s = Sigmoid(10.0f * (time - 0.5f));
     for (int i = 0; i < 8; ++i) {
         auto& key = app.keys[app.keyPermutation[i]];
         if (i % 4 == (reverse ? 0 : 3)) {
-            key.position = TARGET_POSITIONS[i].Lerp(TARGET_POSITIONS[(i + (reverse ? 3 : 1)) % 8], 1 - Sigmoid(10 * (time - 0.5f)));
+            key.position = TARGET_POSITIONS[i].Lerp(TARGET_POSITIONS[(i + (reverse ? 7 : 1)) % 8], s);
         } else {
             key.position = ROTATION_ORIGIN + (TARGET_POSITIONS[i] - ROTATION_ORIGIN).RotateBy(rotDiff);
         }
@@ -292,9 +303,8 @@ void LimboApp::RotatePerm::Anim(LimboApp& app, float dt) {
     }
 }
 
-void LimboApp::RotatePerm::Finish(LimboApp& app) {
-    Permutation::Finish(app);
-    app.keyPermutation.Reverse();
+LimboApp::DepthSwapPerm::DepthSwapPerm(bool reverse, float dura) : Permutation(dura), reverse(reverse) {
+    resultingPermutation = P_SWAP_CELLS;
 }
 
 void LimboApp::DepthSwapPerm::Anim(LimboApp& app, float dt) {
@@ -303,12 +313,7 @@ void LimboApp::DepthSwapPerm::Anim(LimboApp& app, float dt) {
                 dz = Sigmoid(20 * time - 3) - Sigmoid(20 * time - 16);
     for (int i = 0; i < 8; ++i) {
         auto& key = app.keys[app.keyPermutation[i]];
-        key.z = Z_CENTER * (1 + ((i % 4 < 2) == reverse ? 0.2f : -0.5f) * dz);
+        key.z = Z_CENTER * (1 + ((i % 4 < 2) == reverse ? -0.2f : 0.5f) * dz);
         key.position = TARGET_POSITIONS[i] + Math::fv2 { (i % 4 < 2 ? dx : -dx), 0 };
     }
-}
-
-void LimboApp::DepthSwapPerm::Finish(LimboApp& app) {
-    Permutation::Finish(app);
-    Algorithm::ApplyPermutation(app.keyPermutation.AsSpan(), Spans::Vals(P_SWAP_CELLS));
 }
