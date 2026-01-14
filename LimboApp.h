@@ -8,21 +8,26 @@ using namespace Quasi;
 struct LimboKey {
     Math::fv2 position;
     float z;
+    bool visible = true;
 };
 
 class LimboApp {
     class Permutation {
     protected:
         float time = 0.0f;
-        float duration = 1.0f;
-        Array<int, 8> resultingPermutation;
+        Array<int, 8> resultingPermutation = { 0, 1, 2, 3, 4, 5, 6, 7, };
     public:
+        float duration = 1.0f;
+
         explicit Permutation(float dura) : time(-1.0f / (60 * dura)), duration(dura) {}
         virtual ~Permutation() = default;
         virtual void Anim(LimboApp& app, float dt);
-        void Finish(LimboApp& app);
+        virtual void LateAnim(LimboApp& app, float dt) {}
+        virtual void Finish(LimboApp& app);
 
-        bool Done() const { return time > 1.0f; }
+        bool Done() const { return time >= 1.0f; }
+        float ExtraTime() const { return (time - 1.0f) * duration; }
+        void AddTime(float dt) { time += dt / duration; }
     };
 
     static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
@@ -44,7 +49,7 @@ class LimboApp {
     OptRef<Permutation> currentPerm = nullptr;
     static const Math::fv2 TARGET_POSITIONS[8];
 
-    Graphics::Texture2D texKeyMain, texKeyHigh, texKeyShadow, texKeyOutline, texGlow;
+    Graphics::TextureAtlas texAtlas;
     Math::fColor colorPalette[8][3];
 public:
     LimboApp();
@@ -54,6 +59,7 @@ public:
 
     static Math::fv2 Project(Math::fv2 position, float z);
 
+    void DrawKey(Math::fv2 pos, float scale, const Math::fColor palette[3]);
     void DrawKey(Math::fv2 pos, float scale, int colorIndex);
     void DrawKey(int index, float scale = KEY_SIZE, int overrideColorIndex = -1);
     void DrawKeys();
@@ -94,5 +100,22 @@ public:
         explicit DepthSwapPerm(bool reverse, float dura);
         ~DepthSwapPerm() override = default;
         void Anim(LimboApp& app, float dt) override;
+    };
+
+    // not a permutation but used for animations
+    class GlowAnim : public Permutation {
+        int glowingKey = 0, flashCount = 3;
+    public:
+        explicit GlowAnim(int glowingKey, int flashCount, float dura);
+        ~GlowAnim() override = default;
+        void Anim(LimboApp& app, float dt) override;
+        void Finish(LimboApp& app) override;
+    };
+
+    class ReadyAnim : public Permutation {
+    public:
+        explicit ReadyAnim(float dura) : Permutation(dura) {}
+        ~ReadyAnim() override = default;
+        void LateAnim(LimboApp& app, float dt) override;
     };
 };

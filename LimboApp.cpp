@@ -52,12 +52,14 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
         Debug::QError$("Miniaudio Failed to Load!");
     }
     // const Graphics::TextureLoadParams params = { .pixelated = true };
-    texKeyHigh    = Graphics::Texture2D::LoadPNG("../keyhighfix.png");
-    texKeyMain    = Graphics::Texture2D::LoadPNG("../keymainfix.png");
-    texKeyShadow  = Graphics::Texture2D::LoadPNG("../keyshadowfix.png");
-    texKeyOutline = Graphics::Texture2D::LoadPNG("../keyoutline.png");
-    texGlow       = Graphics::Texture2D::LoadPNG("../glow.png");
-    Graphics::Image colorSrc = Graphics::Image::LoadPNG("../colorpalette.png");
+#define RES "../res/"
+    Graphics::Image colorSrc = Graphics::Image::LoadPNG(RES"colorpalette.png");
+
+    texAtlas = Graphics::TextureAtlas::FromFiles(
+        {{ RES"keyhighfix.png", RES"keymain.png", RES"keyshadowfix.png", RES"keyoutline.png", RES"glow.png", RES"ready.png", RES"1.png", RES"2.png", RES"3.png", RES"go.png" }},
+        {{ "high", "main", "shadow", "outline", "glow", "ready", "1", "2", "3", "go" }},
+        true
+    );
 
     for (int i = 0; i < 8; ++i) {
         for (int tone = 0; tone < 3; ++tone) {
@@ -71,46 +73,78 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
     // A B C D
     // E F G H
 
+    Math::RandomGenerator rand;
+    int keyPos[4] = { rand.Get<int>(0, 8) };
+    // -1 means the edge, in order vert, left, right
+    Array<int, 3> neighbors[8] = { { 4, -1, 1 }, { 5, 0, 2 }, { 6, 1, 3 }, { 7, 2, -1 }, { 0, -1, 5 }, { 1, 4, 6 }, { 2, 5, 7 }, { 3, 6, -1 } };
+    int moves[3];
+    CArray<char, 9> permString[3] = { "ABCDEFGH", "ABCDEFGH", "ABCDEFGH" };
+    for (int i = 0; i < 3; ++i) {
+        const int currentKey = keyPos[i];
+        const bool hasLeft  = neighbors[currentKey][1] != -1;
+        const bool hasRight = neighbors[currentKey][2] != -1;
+        // we dont want duplicate directions, so after the first one we only have 2 directions left
+        moves[i] = rand.Get<int>(0, 2 + (i == 0));
+        if (moves[i] == 1 && !hasLeft) {
+            moves[i] = rand.GetBool() * 2;
+        } else if (moves[i] == 2 && !hasRight) {
+            moves[i] = rand.GetBool() * 1;
+        }
+        std::swap(permString[i][currentKey], permString[i][neighbors[currentKey][moves[i]]]);
+        keyPos[i + 1] = neighbors[keyPos[i]][moves[i]];
+    }
+
     static constexpr float INV_SPEED = 1.0f;
     permutations = Vecs::New((Box<Permutation>[]) {
-        Box<ShufflePerm>  ::Build("FGHCEABD",   0.28f * INV_SPEED),
-        Box<CyclicPerm>   ::Build(false,        0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.28f * INV_SPEED),
-        Box<CyclicPerm>   ::Build(true,         0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("EGHCFABD",   0.28f * INV_SPEED),
-        Box<DepthSwapPerm>::Build(true,         0.60f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("BCDAFGHE",   0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("FGDHAEBC",   0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("EAFHBCDG",   0.28f * INV_SPEED),
-        Box<RotatePerm>   ::Build(false,        0.66f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("BEDHAGFC",   0.28f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("BCDAFGHE",   0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("DABCHEFG",   0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_EASY_SHIFT, 0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build("FGHCAEBD",   0.25f * INV_SPEED),
-        Box<DepthSwapPerm>::Build(false,        0.50f * INV_SPEED),
-        Box<RotatePerm>   ::Build(true,         0.45f * INV_SPEED),
-        Box<CyclicPerm>   ::Build(true,         0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_EASY_SHIFT, 0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,  0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_SHIFT_CW,   0.25f * INV_SPEED),
-        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,  0.25f * INV_SPEED),
+        Box<GlowAnim>     ::Build(keyPos[0], 3,    3.30f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(permString[0],   0.56f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(permString[1],   0.56f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(permString[2],   0.56f * INV_SPEED),
+        Box<Permutation>  ::Build(                 0.54f * INV_SPEED),
+        Box<GlowAnim>     ::Build(keyPos[3], 2,    2.20f * INV_SPEED),
+        Box<ReadyAnim>    ::Build(                 1.65f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("FGHCEABD",      0.28f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(false,           0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,     0.30f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(true,            0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("EGHCFABD",      0.28f * INV_SPEED),
+        Box<DepthSwapPerm>::Build(true,            0.82f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAFGHE",      0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("FGDHAEBC",      0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("EAFHBCDG",      0.28f * INV_SPEED),
+        Box<RotatePerm>   ::Build(false,           0.66f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,     0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BEDHAGFC",      0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("BCDAFGHE",      0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("DABCHEFG",      0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,     0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_EASY_SHIFT,    0.28f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("FGHCAEBD",      0.28f * INV_SPEED),
+        Box<DepthSwapPerm>::Build(false,           0.50f * INV_SPEED),
+        Box<RotatePerm>   ::Build(true,            0.45f * INV_SPEED),
+        Box<CyclicPerm>   ::Build(true,            0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,     0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_DIAG_SWAP,     0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_EASY_SHIFT,    0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build("EFGHABCD",      0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CW,      0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CW,      0.25f * INV_SPEED),
+        Box<ShufflePerm>  ::Build(P_SHIFT_CCW,     0.25f * INV_SPEED),
     });
 
     Graphics::Render::UseBlendFunc(Graphics::BlendFactor::ONE, Graphics::BlendFactor::INVERT_SRC_ALPHA);
 
-    ma_result result = ma_sound_init_from_file(&audioEngine, "../LimboMus.wav", 0, nullptr, nullptr, &music);
+    ma_result result = ma_sound_init_from_file(&audioEngine, RES"LimboMus.wav", 0, nullptr, nullptr, &music);
     if (result != MA_SUCCESS) {
         Debug::QError$("Failed to play Sound!");
     }
-    static constexpr int SAMPLE_RATE = 44100;
-    static constexpr int SKIP_FRAME_COUNT = (int)(10.28 * SAMPLE_RATE);
-    ma_sound_seek_to_pcm_frame(&music, SKIP_FRAME_COUNT);
+    // static constexpr int SAMPLE_RATE = 44100;
+    // const float animTime = permutations.Iter().Map([] (const Box<Permutation>& p) {
+    //                            return p->duration;
+    //                        }).Sum().Unwrap() / INV_SPEED;
+    // int SKIP_FRAME_COUNT = (int)((18.54 - animTime) * SAMPLE_RATE);
+    // ma_sound_seek_to_pcm_frame(&music, SKIP_FRAME_COUNT);
+    ma_sound_set_pitch(&music, 1.0f / INV_SPEED);
     ma_sound_start(&music);
 }
 
@@ -131,6 +165,8 @@ bool LimboApp::Run() {
     if (currentPerm)
         currentPerm->Anim(*this, io.Time.DeltaTime());
     DrawKeys();
+    if (currentPerm)
+        currentPerm->LateAnim(*this, io.Time.DeltaTime());
 
     // jailbreak safety measure
     if (io.Keyboard.KeyOnPress(IO::Key::F)) {
@@ -142,11 +178,13 @@ bool LimboApp::Run() {
     }
 
     if (!currentPerm || (frame < permutations.Length() && currentPerm->Done())) {
+        const float extraTime = currentPerm ? currentPerm->ExtraTime() : 0;
         if (currentPerm) {
             currentPerm->Finish(*this);
         }
         ResetKeyPos();
         currentPerm = permutations[frame].AsRef();
+        currentPerm->AddTime(extraTime);
         ++frame;
     }
 
@@ -155,14 +193,18 @@ bool LimboApp::Run() {
     return true;
 }
 
-void LimboApp::DrawKey(Math::fv2 pos, float scale, int colorIndex) {
+void LimboApp::DrawKey(Math::fv2 pos, float scale, const Math::fColor palette[3]) {
     canvas.transform = Math::Transform2D(pos, 1, Math::Radians(globalRotation));
-    canvas.DrawTextureW(texKeyMain,    0, scale, true, { .tint = colorPalette[colorIndex][0] });
-    canvas.DrawTextureW(texKeyHigh,    0, scale, true, { .tint = colorPalette[colorIndex][1] });
-    canvas.DrawTextureW(texKeyShadow,  0, scale, true, { .tint = colorPalette[colorIndex][2] });
-    canvas.DrawTextureW(texKeyOutline, 0, scale);
-    canvas.DrawTextureW(texGlow,       0, scale, true, { .tint = colorPalette[colorIndex][0].AddAlpha(0.2f) });
+    canvas.DrawSTextureW(texAtlas["main"],    0, scale, true, palette[0]);
+    canvas.DrawSTextureW(texAtlas["high"],    0, scale, true, palette[1]);
+    canvas.DrawSTextureW(texAtlas["shadow"],  0, scale, true, palette[2]);
+    canvas.DrawSTextureW(texAtlas["outline"], 0, scale);
+    canvas.DrawSTextureW(texAtlas["glow"],    0, scale, true, palette[0].AddAlpha(0.2f));
     canvas.transform.Reset();
+}
+
+void LimboApp::DrawKey(Math::fv2 pos, float scale, int colorIndex) {
+    DrawKey(pos, scale, colorPalette[colorIndex]);
 }
 
 void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
@@ -174,7 +216,7 @@ void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
 
 void LimboApp::DrawKeys() {
     for (int i = 0; i < 8; i++) { // back keys
-        if (keys[i].z < Z_CENTER) continue;
+        if (keys[i].z < Z_CENTER || !keys[i].visible) continue;
         DrawKey(i, KEY_SIZE, showColors * i);
     }
 
@@ -182,7 +224,7 @@ void LimboApp::DrawKeys() {
     // canvas.DrawText("Limbo", 216, { WIDTH * 0.3, HEIGHT * 0.7 }, { .rect = { WIDTH * 0.4, HEIGHT * 0.4 } });
 
     for (int i = 0; i < 8; i++) { // front keys
-        if (keys[i].z >= Z_CENTER) continue;
+        if (keys[i].z >= Z_CENTER || !keys[i].visible) continue;
         DrawKey(i, KEY_SIZE, showColors * i);
     }
 }
@@ -309,11 +351,43 @@ LimboApp::DepthSwapPerm::DepthSwapPerm(bool reverse, float dura) : Permutation(d
 
 void LimboApp::DepthSwapPerm::Anim(LimboApp& app, float dt) {
     Permutation::Anim(app, dt);
-    const float dx = WIDTH * 0.4f * Sigmoid(20 * time - 8),
-                dz = Sigmoid(20 * time - 3) - Sigmoid(20 * time - 16);
+    const float dx = WIDTH * 0.4f * Sigmoid(20 * time - 10),
+                dz = Sigmoid(30 * time - 6) - Sigmoid(30 * time - 26);
     for (int i = 0; i < 8; ++i) {
         auto& key = app.keys[app.keyPermutation[i]];
         key.z = Z_CENTER * (1 + ((i % 4 < 2) == reverse ? -0.2f : 0.5f) * dz);
         key.position = TARGET_POSITIONS[i] + Math::fv2 { (i % 4 < 2 ? dx : -dx), 0 };
     }
+}
+
+LimboApp::GlowAnim::GlowAnim(int glowingKey, int flashCount, float dura) : Permutation(dura), glowingKey(glowingKey), flashCount(flashCount) {}
+
+void LimboApp::GlowAnim::Anim(LimboApp& app, float dt) {
+    Permutation::Anim(app, dt);
+    auto& key = app.keys[app.keyPermutation[glowingKey]];
+    key.visible = false;
+    Math::fColor mixedPalette[3];
+    float s = 0.5f + 0.5f * std::cos(2.0f * flashCount * time * Math::PI);
+    s = 1 - s * s;
+    for (int i = 0; i < 3; ++i) {
+        mixedPalette[i] = app.colorPalette[0][i].Lerp(app.colorPalette[3][i], s);
+    }
+    app.DrawKey(key.position, KEY_SIZE, mixedPalette);
+}
+
+void LimboApp::GlowAnim::Finish(LimboApp& app) {
+    Permutation::Finish(app);
+    app.keys[app.keyPermutation[glowingKey]].visible = true;
+}
+
+void LimboApp::ReadyAnim::LateAnim(LimboApp& app, float dt) {
+    Permutation::LateAnim(app, dt);
+    static constexpr float ACC_TIMES[] = { 0.0f, 0.33f, 0.5f, 0.67f, 0.83f, 1.0f };
+    static Str TEXTURES[] = { "ready", "3", "2", "1", "go" };
+    const int texIndex = (int)(Span { ACC_TIMES }.FindIf([&] (float x) { return x > time; }).UnwrapOr(5));
+    const float t = time - ACC_TIMES[texIndex - 1], dur = ACC_TIMES[texIndex] - ACC_TIMES[texIndex - 1];
+    const float y = CubicEase(t * 18) + CubicEase((t - (dur - 0.05f)) * 18);
+
+    app.canvas.transform = { { WIDTH * 0.5f, HEIGHT * y * 0.5f }, 1,  };
+    app.canvas.DrawSTextureH(app.texAtlas[TEXTURES[texIndex - 1]], 0, WIDTH * 0.15f);
 }

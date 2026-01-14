@@ -394,17 +394,38 @@ namespace Quasi::Graphics {
     }
 
     void Canvas::DrawTextureEx(const Texture2D& texture, const Math::fRect2D& rect, const SpriteOptions& options) {
-        Batch batch = NewBatch();
-        batch.SetColor(options.tint);
-        batch.SetTexture(texture.rendererID);
+        DrawSTextureEx({ texture, options.mask }, rect, options.tint);
+    }
 
-        batch.SetTextureCoord(options.mask.min.x, options.mask.min.y);
+    void Canvas::DrawSTexture(const SubTexture& subtex, const Math::fv2& pos, const Math::fv2& size, bool center, const Math::fColor& tint) {
+        const Math::fRect2D rect = center ?
+            Math::fRect2D::FromCenter(pos, size / 2) :
+            Math::fRect2D::FromSize  (pos, size);
+        DrawSTextureEx(subtex, rect, tint);
+    }
+
+    void Canvas::DrawSTextureW(const SubTexture& subtex, const Math::fv2& pos, float w, bool center, const Math::fColor& tint) {
+        const Math::fv2 subImgSize = subtex.tex->Size().As<float>() * subtex.rect.Size();
+        return DrawSTexture(subtex, pos, { w, w / subImgSize.AspectRatio() }, center, tint);
+    }
+
+    void Canvas::DrawSTextureH(const SubTexture& subtex, const Math::fv2& pos, float h, bool center, const Math::fColor& tint) {
+        const Math::fv2 subImgSize = subtex.tex->Size().As<float>() * subtex.rect.Size();
+        return DrawSTexture(subtex, pos, { h * subImgSize.AspectRatio(), h }, center, tint);
+    }
+
+    void Canvas::DrawSTextureEx(const SubTexture& subtex, const Math::fRect2D& rect, const Math::fColor& tint) {
+        Batch batch = NewBatch();
+        batch.SetColor(tint);
+        batch.SetTexture(subtex.tex->rendererID);
+
+        batch.SetTextureCoord(subtex.rect.min.x, subtex.rect.min.y);
         batch.Point(rect.min);
-        batch.SetTextureCoord(options.mask.min.x, options.mask.max.y);
+        batch.SetTextureCoord(subtex.rect.min.x, subtex.rect.max.y);
         batch.Point({ rect.min.x, rect.max.y });
-        batch.SetTextureCoord(options.mask.max.x, options.mask.max.y);
+        batch.SetTextureCoord(subtex.rect.max.x, subtex.rect.max.y);
         batch.Point(rect.max);
-        batch.SetTextureCoord(options.mask.max.x, options.mask.min.y);
+        batch.SetTextureCoord(subtex.rect.max.x, subtex.rect.min.y);
         batch.Point({ rect.max.x, rect.min.y });
 
         batch.Quad(0, 1, 2, 3);
