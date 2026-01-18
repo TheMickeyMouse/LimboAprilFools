@@ -340,7 +340,7 @@ namespace Quasi::Text {
     u64 NumberConversion::U64ToBCD8(u64 x) {
         // x   = [00000000ABCDEFGH]
         // top = [000000000000ABCD]
-        u32 top = (x * 109951163) >> 40; // 1/10000
+        u64 top = (x * 109951163) >> 40; // 1/10000
         // x   = [0000ABCD0000EFGH]
         x += top * ((1_u64 << 32) - 10000);
         // top = [000000AB000000EF]
@@ -392,19 +392,40 @@ namespace Quasi::Text {
             else
                 len = x > 99999 ? 6 : 5;
         } else {
-            const u64 skip8 = x * 0x55E63B89 >> 57; // 10^-8
+            // max num digits is 20
+
+            u64 skip8 = x / 100'000'000;
             x -= (skip8 * 100'000'000);
-            // h will be at most 42
-            // calc num digits
-            len = U64ToString(skip8, out);
-            out += 8;
-            len += 8;
+
+            if (skip8 >= 100'000'000) {
+                const u64 skip16 = skip8 / 100'000'000;
+                skip8 -= (skip16 * 100'000'000);
+                len = U64ToString(skip16, out);
+                out += len;
+                skip8 = U64ToBCD8(skip8);
+                skip8 |= 0x3030303030303030;
+                Memory::WriteU64Big(skip8, out);
+                len += 8;
+                out += 8;
+            } else {
+                len = u32s::Log10(skip8) + 1;
+                skip8 = U64ToBCD8(skip8);
+                skip8 |= 0x3030303030303030;
+                Memory::MemCopyNoOverlap(out, ((const char*)&skip8) + 8 - len, len);
+                out += len;
+            }
+
+            x = U64ToBCD8(x);
+            x |= 0x3030303030303030;
+
+            Memory::WriteU64Big(x, out);
+            return len + 8;
         }
 
         x = U64ToBCD8(x);
         x |= 0x3030303030303030;
 
-        Memory::MemCopyNoOverlap(out, ((const char*)&x) + (8 + (-8 | -len)), len);
+        Memory::MemCopyNoOverlap(out, ((const char*)&x) + 8 - len, len);
         return len;
     }
 
@@ -434,7 +455,7 @@ namespace Quasi::Text {
         const u32 right = padLen * (usize)options.alignment / 2;
 
         if (options.showPrefix && options.base != IntFormatter::FormatOptions::DECIMAL) {
-            sw.Write(Str::Slice(&"0b0o0x0X"[options.base * 2], 2));
+            sw.Write(Str::Slice(&"0b0o0x0X"[options.base * 2 - 2], 2));
             padLen = std::max(2u, padLen) - 2;
         }
 

@@ -8,7 +8,7 @@ using namespace Quasi;
 struct LimboKey {
     Math::fv2 position;
     float z;
-    bool visible = true;
+    Math::fColor color[3];
 };
 
 class LimboApp {
@@ -25,7 +25,7 @@ class LimboApp {
         virtual void LateAnim(LimboApp& app, float dt) {}
         virtual void Finish(LimboApp& app);
 
-        bool Done() const { return time >= 1.0f; }
+        virtual bool Done() const { return time >= 1.0f; }
         float ExtraTime() const { return (time - 1.0f) * duration; }
         void AddTime(float dt) { time += dt / duration; }
     };
@@ -64,11 +64,13 @@ public:
     void DrawKey(int index, float scale = KEY_SIZE, int overrideColorIndex = -1);
     void DrawKeys();
 
+    const Math::fColor& GetColor(int index, int shade) const;
+    const CArray<Math::fColor, 3>& GetColorShades(int index) const;
+
     void ResetKeyPos();
     void LerpKeyPos();
     // indices is the array of 'what each key is replaced with'
     void ShuffleKeys(Span<int> indices);
-    void SetSpinningKeys();
 
     class ShufflePerm : public Permutation {
     public:
@@ -117,5 +119,13 @@ public:
         explicit ReadyAnim(float dura) : Permutation(dura) {}
         ~ReadyAnim() override = default;
         void LateAnim(LimboApp& app, float dt) override;
+    };
+
+    class EndAnim : public Permutation {
+    public:
+        explicit EndAnim(float dura, LimboApp& app);
+        ~EndAnim() override = default;
+        void Anim(LimboApp& app, float dt) override;
+        bool Done() const override { return false; }
     };
 };

@@ -65,6 +65,7 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
         for (int tone = 0; tone < 3; ++tone) {
             // image is flipped
             colorPalette[i][tone] = (Math::fColor)colorSrc[{ tone, 7 - i }];
+            keys[i].color[tone] = colorPalette[0][tone];
         }
     }
 
@@ -74,25 +75,23 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
     // E F G H
 
     Math::RandomGenerator rand;
-    int keyPos[4] = { rand.Get<int>(0, 8) };
-    // -1 means the edge, in order vert, left, right
-    Array<int, 3> neighbors[8] = { { 4, -1, 1 }, { 5, 0, 2 }, { 6, 1, 3 }, { 7, 2, -1 }, { 0, -1, 5 }, { 1, 4, 6 }, { 2, 5, 7 }, { 3, 6, -1 } };
-    int moves[3];
+    static constexpr int VALID_PERMUTATIONS[] = {
+        0x0123, 0x0126, 0x0154, 0x0156, 0x0456, 0x0451,
+        0x1045, 0x1237, 0x1265, 0x1267, 0x1540, 0x1567,
+        0x1562, 0x2104, 0x2154, 0x2156, 0x2376, 0x2654,
+        0x2651, 0x2673, 0x3210, 0x3215, 0x3265, 0x3267,
+        0x3765, 0x3762, 0x4012, 0x4015, 0x4567, 0x4562,
+        0x4510, 0x4512, 0x5401, 0x5673, 0x5621, 0x5623,
+        0x5104, 0x5123, 0x5126, 0x6540, 0x6510, 0x6512,
+        0x6732, 0x6210, 0x6215, 0x6237, 0x7654, 0x7651,
+        0x7621, 0x7623, 0x7321, 0x7326
+    };
+    const int STARTING_PERM = rand.Choose(Span(VALID_PERMUTATIONS));
+    const int keyPos[4] = { STARTING_PERM & 0xF, (STARTING_PERM & 0xF0) >> 4, (STARTING_PERM & 0xF00) >> 8, (STARTING_PERM & 0xF000) >> 12 };
     CArray<char, 9> permString[3] = { "ABCDEFGH", "ABCDEFGH", "ABCDEFGH" };
-    for (int i = 0; i < 3; ++i) {
-        const int currentKey = keyPos[i];
-        const bool hasLeft  = neighbors[currentKey][1] != -1;
-        const bool hasRight = neighbors[currentKey][2] != -1;
-        // we dont want duplicate directions, so after the first one we only have 2 directions left
-        moves[i] = rand.Get<int>(0, 2 + (i == 0));
-        if (moves[i] == 1 && !hasLeft) {
-            moves[i] = rand.GetBool() * 2;
-        } else if (moves[i] == 2 && !hasRight) {
-            moves[i] = rand.GetBool() * 1;
-        }
-        std::swap(permString[i][currentKey], permString[i][neighbors[currentKey][moves[i]]]);
-        keyPos[i + 1] = neighbors[keyPos[i]][moves[i]];
-    }
+    std::swap(permString[0][keyPos[0]], permString[0][keyPos[1]]);
+    std::swap(permString[1][keyPos[1]], permString[1][keyPos[2]]);
+    std::swap(permString[2][keyPos[2]], permString[2][keyPos[3]]);
 
     static constexpr float INV_SPEED = 1.0f;
     permutations = Vecs::New((Box<Permutation>[]) {
@@ -130,6 +129,7 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
         Box<ShufflePerm>  ::Build(P_SHIFT_CW,      0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CW,      0.25f * INV_SPEED),
         Box<ShufflePerm>  ::Build(P_SHIFT_CCW,     0.25f * INV_SPEED),
+        Box<EndAnim>      ::Build(                 1.00f * INV_SPEED),
     });
 
     Graphics::Render::UseBlendFunc(Graphics::BlendFactor::ONE, Graphics::BlendFactor::INVERT_SRC_ALPHA);
@@ -199,7 +199,7 @@ void LimboApp::DrawKey(Math::fv2 pos, float scale, const Math::fColor palette[3]
     canvas.DrawSTextureW(texAtlas["high"],    0, scale, true, palette[1]);
     canvas.DrawSTextureW(texAtlas["shadow"],  0, scale, true, palette[2]);
     canvas.DrawSTextureW(texAtlas["outline"], 0, scale);
-    canvas.DrawSTextureW(texAtlas["glow"],    0, scale, true, palette[0].AddAlpha(0.2f));
+    canvas.DrawSTextureW(texAtlas["glow"],    0, scale, true, palette[0].AddAlpha(0.25f));
     canvas.transform.Reset();
 }
 
@@ -208,25 +208,32 @@ void LimboApp::DrawKey(Math::fv2 pos, float scale, int colorIndex) {
 }
 
 void LimboApp::DrawKey(int index, float scale, int overrideColorIndex) {
-    overrideColorIndex = overrideColorIndex == -1 ? index : overrideColorIndex;
     const Math::fv2 screenPos = Project(keys[index].position, keys[index].z);
     const float size = scale * Z_CENTER / keys[index].z;
-    DrawKey(screenPos, size, overrideColorIndex);
+    DrawKey(screenPos, size, overrideColorIndex != -1 ? GetColorShades(overrideColorIndex) : keys[index].color);
 }
 
 void LimboApp::DrawKeys() {
     for (int i = 0; i < 8; i++) { // back keys
-        if (keys[i].z < Z_CENTER || !keys[i].visible) continue;
-        DrawKey(i, KEY_SIZE, showColors * i);
+        if (keys[i].z < Z_CENTER) continue;
+        DrawKey(i, KEY_SIZE, showColors ? i : -1);
     }
 
     // canvas.Stroke(Math::fColor::White());
     // canvas.DrawText("Limbo", 216, { WIDTH * 0.3, HEIGHT * 0.7 }, { .rect = { WIDTH * 0.4, HEIGHT * 0.4 } });
 
     for (int i = 0; i < 8; i++) { // front keys
-        if (keys[i].z >= Z_CENTER || !keys[i].visible) continue;
-        DrawKey(i, KEY_SIZE, showColors * i);
+        if (keys[i].z >= Z_CENTER) continue;
+        DrawKey(i, KEY_SIZE, showColors ? i : -1);
     }
+}
+
+const Math::fColor& LimboApp::GetColor(int index, int shade) const {
+    return colorPalette[index][shade];
+}
+
+const CArray<Math::fColor, 3>& LimboApp::GetColorShades(int index) const {
+    return colorPalette[index];
 }
 
 void LimboApp::ResetKeyPos() {
@@ -252,38 +259,9 @@ Math::fv2 LimboApp::Project(Math::fv2 position, float z) {
     return ORIGIN + (position - ORIGIN) * (Z_CENTER / z);
 }
 
-void LimboApp::SetSpinningKeys() {
-    const float time = gdevice.GetIO().Time.currentTime;
-    // const float time = 0;
-
-    using namespace Quasi::Math;
-    const Radians AXIS_TILT = 85.0_deg;
-    const fv3 mainAxis = fv3::FromSpheric(1, Radians(time * 0.3f), AXIS_TILT);
-    const Rotor3D tilt = Rotor3D::RotateTo({ 0, 1, 0 }, mainAxis);
-
-    const Rotor2D turn = 45.0_deg;
-    Rotor2D curr = Radians(time * 0.75f);
-
-    const fv3 origin = { WIDTH * 0.5f, HEIGHT * 0.5f, Z_CENTER };
-    fv3 localX = tilt * fv3 { WIDTH * 0.3f, 0, 0 };
-    fv3 localZ = tilt * fv3 { 0, WIDTH * 0.1f, WIDTH * 0.1f };
-    localX.z = 0;
-    localZ.z /= WIDTH * 0.33f;
-    for (auto& key : keys) {
-        auto [x, y, z] = localX * curr.Cos() + localZ * curr.Sin() + origin;
-        key.position = { x, y };
-        key.z = z;
-        curr += turn;
-    }
-
-    // canvas.DrawLine({ WIDTH * 0.5f, HEIGHT * 0.5f }, Project(mainAxis * fv3 { 300, 300, 10 } + origin));
-}
-
-
 LimboApp::ShufflePerm::ShufflePerm(Str permutation, float dura) : Permutation(dura) {
     // perform standard permutation
     for (int i = 0; i < 8; i++) resultingPermutation[i] = permutation[i] - 'A';
-
 }
 
 void LimboApp::ShufflePerm::Anim(LimboApp& app, float dt) {
@@ -365,19 +343,15 @@ LimboApp::GlowAnim::GlowAnim(int glowingKey, int flashCount, float dura) : Permu
 void LimboApp::GlowAnim::Anim(LimboApp& app, float dt) {
     Permutation::Anim(app, dt);
     auto& key = app.keys[app.keyPermutation[glowingKey]];
-    key.visible = false;
-    Math::fColor mixedPalette[3];
     float s = 0.5f + 0.5f * std::cos(2.0f * flashCount * time * Math::PI);
     s = 1 - s * s;
     for (int i = 0; i < 3; ++i) {
-        mixedPalette[i] = app.colorPalette[0][i].Lerp(app.colorPalette[3][i], s);
+        key.color[i] = app.colorPalette[0][i].Lerp(app.colorPalette[3][i], s);
     }
-    app.DrawKey(key.position, KEY_SIZE, mixedPalette);
 }
 
 void LimboApp::GlowAnim::Finish(LimboApp& app) {
     Permutation::Finish(app);
-    app.keys[app.keyPermutation[glowingKey]].visible = true;
 }
 
 void LimboApp::ReadyAnim::LateAnim(LimboApp& app, float dt) {
@@ -386,8 +360,58 @@ void LimboApp::ReadyAnim::LateAnim(LimboApp& app, float dt) {
     static Str TEXTURES[] = { "ready", "3", "2", "1", "go" };
     const int texIndex = (int)(Span { ACC_TIMES }.FindIf([&] (float x) { return x > time; }).UnwrapOr(5));
     const float t = time - ACC_TIMES[texIndex - 1], dur = ACC_TIMES[texIndex] - ACC_TIMES[texIndex - 1];
-    const float y = CubicEase(t * 18) + CubicEase((t - (dur - 0.05f)) * 18);
+    const Graphics::SubTexture tex = app.texAtlas[TEXTURES[texIndex - 1]];
 
-    app.canvas.transform = { { WIDTH * 0.5f, HEIGHT * y * 0.5f }, 1,  };
-    app.canvas.DrawSTextureH(app.texAtlas[TEXTURES[texIndex - 1]], 0, WIDTH * 0.15f);
+    if (texIndex == 5) {
+        const float y = CubicEase(t * 18), alpha = CubicEase((t - (dur - 0.05f)) * 18);
+        app.canvas.DrawSTextureH(tex, { WIDTH * 0.5f, HEIGHT * y * 0.5f }, WIDTH * 0.15f * std::exp(alpha), true, { 1, 1 - alpha });
+        return;
+    }
+    float y;
+    if (texIndex == 1) {
+        const float recoilT = std::max((t - (dur - 0.1f)) * 18, -0.05f * 18);
+        y = CubicEase(t * 18) + (recoilT * recoilT) - 0.81f;
+    } else {
+        y = CubicEase(t * 18) + CubicEase((t - (dur - 0.05f)) * 18);
+    }
+
+    // app.canvas.transform = { { WIDTH * 0.5f, HEIGHT * y * 0.5f }, 1,  };
+    app.canvas.DrawSTextureH(tex, { WIDTH * 0.5f, HEIGHT * y * 0.5f }, WIDTH * 0.15f);
+}
+
+LimboApp::EndAnim::EndAnim(float dura, LimboApp& app) : Permutation(dura) {
+    time = 1.3f;
+
+    // app.canvas.AddInteractable()
+}
+
+void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
+    // dont use this: Permutation::Anim(app, dt);
+    time += dt;
+
+    using namespace Quasi::Math;
+    const Radians AXIS_TILT = 85.0_deg;
+    const fv3 mainAxis = fv3::FromSpheric(1, Radians(time * 0.3f), AXIS_TILT);
+    const Rotor3D tilt = Rotor3D::RotateTo({ 0, 1, 0 }, mainAxis);
+
+    const Rotor2D turn = 45.0_deg;
+    Rotor2D curr = Radians(time * 0.75f);
+
+    const fv3 origin = { WIDTH * 0.5f, HEIGHT * 0.5f, Z_CENTER };
+    fv3 localX = tilt * fv3 { WIDTH * 0.3f, 0, 0 };
+    fv3 localZ = tilt * fv3 { 0, WIDTH * 0.1f, WIDTH * 0.1f };
+    localX.z = 0;
+    localZ.z /= WIDTH * 0.33f;
+
+    static constexpr int REV_PERM[] = { 3, 2, 1, 0, 4, 5, 6, 7 };
+    for (int i = 0; i < 8; ++i) {
+        auto& key = app.keys[app.keyPermutation[REV_PERM[i]]];
+        auto [x, y, z] = localX * curr.Cos() + localZ * curr.Sin() + origin;
+        key.position.LerpToward({ x, y }, 0.05f);
+        key.z = std::lerp(key.z, z, 0.05f);
+        curr += turn;
+        for (int tone = 0; tone < 3; ++tone) {
+            key.color[tone].LerpTowards(app.GetColor(app.keyPermutation[i], tone), 0.2f);
+        }
+    }
 }

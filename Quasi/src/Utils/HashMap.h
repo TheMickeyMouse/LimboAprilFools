@@ -600,7 +600,7 @@ namespace Quasi {
         }
 
         void NextWhileLessThan(InfoType* info, usize* idx) const {
-            while (*info < info[*idx]) {
+            while (*info < infoData[*idx]) {
                 Next(info, idx);
             }
         }
