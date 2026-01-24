@@ -11,7 +11,7 @@ namespace Quasi::Text {
     };
 
     struct IntFormatter {
-        // :((?'pad'.?)(?'align'[<^>])(?'totalLen'[0-9]+)\,)?(?'showSign'\+?)(?'shouldPadZero'0?)(?'numLen'[0-9]*)(?'base'[dboxX])
+        // see python's int options
         struct FormatOptions {
             u32 numLen = 0;
             u32 width = 0;

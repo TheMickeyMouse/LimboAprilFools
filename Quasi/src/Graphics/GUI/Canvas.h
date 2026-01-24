@@ -100,6 +100,8 @@ namespace Quasi::Graphics {
 
         void DrawText(Str text, float fontSize, const Math::fv2& pos, const TextAlign& align = {});
 
+        void ShowHitboxes();
+
         // if for some reason we either:
         //      1. run out of index/vertex memory
         //   or 2. use up all the texture slots,

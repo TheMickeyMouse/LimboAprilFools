@@ -138,6 +138,11 @@ namespace Quasi {
         template <class _T, class _A> friend struct Box;
     };
 
+    namespace Boxs {
+        template <class T>
+        Box<T> New(T val) { return Box<T>::New(std::move(val)); }
+    }
+
     struct GlobalArrayDelete {
         void operator()(auto* ptr) const { Memory::FreeArray(ptr); }
     };

@@ -1,4 +1,5 @@
 #pragma once
+#include "Timeline.h"
 #include "GUI/Canvas.h"
 #include "Quasi/src/Graphics/GraphicsDevice.h"
 #include "miniaudio/miniaudio.h"
@@ -7,27 +8,25 @@ using namespace Quasi;
 
 struct LimboKey {
     Math::fv2 position;
-    float z;
+    float scale = 1, z = 1, glowIntensity = 0.12f;
     Math::fColor color[3];
 };
 
+struct ScreenShake {
+    Math::fv2 offset;
+    float amplitude = 0.0f;
+    void Trigger(float amp);
+    void Update(float dt);
+};
+
 class LimboApp {
-    class Permutation {
+    class Permutation : public Effect {
     protected:
-        float time = 0.0f;
         Array<int, 8> resultingPermutation = { 0, 1, 2, 3, 4, 5, 6, 7, };
     public:
-        float duration = 1.0f;
-
-        explicit Permutation(float dura) : time(-1.0f / (60 * dura)), duration(dura) {}
-        virtual ~Permutation() = default;
-        virtual void Anim(LimboApp& app, float dt);
-        virtual void LateAnim(LimboApp& app, float dt) {}
-        virtual void Finish(LimboApp& app);
-
-        virtual bool Done() const { return time >= 1.0f; }
-        float ExtraTime() const { return (time - 1.0f) * duration; }
-        void AddTime(float dt) { time += dt / duration; }
+        explicit Permutation(float dura) : Effect(dura) {}
+        ~Permutation() override = default;
+        void Finish(LimboApp& app) override;
     };
 
     static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
@@ -38,15 +37,16 @@ class LimboApp {
     ma_engine audioEngine;
     ma_sound music;
 
+    Graphics::RenderObject<Graphics::Vertex2D> vignette;
+    ScreenShake screenShake;
+    float effectTimer = 0.0f;
+
     LimboKey keys[8];
     Array<int, 8> keyPermutation = { 0, 1, 2, 3, 4, 5, 6, 7 };
-    usize frame = 0;
-    f32 globalRotation = 0.0f;
-    bool showColors = false;
+    f32 globalRotation = 0.0f, globalScale = 1.0f;
+    bool showHitboxes = false;
 
-    // this is a list of factories
-    Vec<Box<Permutation>> permutations;
-    OptRef<Permutation> currentPerm = nullptr;
+    Timeline timeline;
     static const Math::fv2 TARGET_POSITIONS[8];
 
     Graphics::TextureAtlas texAtlas;
@@ -59,13 +59,13 @@ public:
 
     static Math::fv2 Project(Math::fv2 position, float z);
 
-    void DrawKey(Math::fv2 pos, float scale, const Math::fColor palette[3]);
-    void DrawKey(Math::fv2 pos, float scale, int colorIndex);
-    void DrawKey(int index, float scale = KEY_SIZE, int overrideColorIndex = -1);
+    void DrawKey(int index);
     void DrawKeys();
 
     const Math::fColor& GetColor(int index, int shade) const;
     const CArray<Math::fColor, 3>& GetColorShades(int index) const;
+    const LimboKey& KeyAt(int index) const;
+    LimboKey& KeyAt(int index);
 
     void ResetKeyPos();
     void LerpKeyPos();
@@ -106,25 +106,41 @@ public:
 
     // not a permutation but used for animations
     class GlowAnim : public Permutation {
-        int glowingKey = 0, flashCount = 3;
+        LimboKey& glowingKey;
+        int flashCount = 3;
     public:
-        explicit GlowAnim(int glowingKey, int flashCount, float dura);
+        explicit GlowAnim(LimboKey& glowingKey, int flashCount, float dura);
         ~GlowAnim() override = default;
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
     };
 
     class ReadyAnim : public Permutation {
+        int texIndex = 0;
     public:
         explicit ReadyAnim(float dura) : Permutation(dura) {}
         ~ReadyAnim() override = default;
         void LateAnim(LimboApp& app, float dt) override;
     };
 
+    struct KeyGizmo : Interactable {
+        OptRef<LimboKey> key = nullptr;
+        int keyIndex = 0;
+        float realZ = 1.0f, zScale = 1.0f;
+        KeyGizmo() : Interactable({}) {}
+        KeyGizmo(LimboKey& key, int index);
+        ~KeyGizmo() override = default;
+
+        bool CaptureEvent(MouseEventType::E e, IO::IO& io) override;
+        void Update();
+    };
+
     class EndAnim : public Permutation {
+        Array<KeyGizmo, 8> keyGizmos;
     public:
-        explicit EndAnim(float dura, LimboApp& app);
+        explicit EndAnim(float dura);
         ~EndAnim() override = default;
+        void Init(LimboApp& app) override;
         void Anim(LimboApp& app, float dt) override;
         bool Done() const override { return false; }
     };

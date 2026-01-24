@@ -431,7 +431,7 @@ namespace Quasi::Text {
 
     usize NumberConversion::FormatU64(StringWriter sw, u64 num, const IntFormatter::FormatOptions& options, char sign) {
         if (num == 0) {
-            const u32 padLen = options.width - options.numLen;
+            const u32 padLen = std::max(options.width, options.numLen) - options.numLen;
             const u32 right = padLen * (usize)options.alignment / 2;
             sw.WriteRepeat(options.pad, padLen - right);
             sw.WriteRepeat(options.shouldPadZero ? '0' : ' ', std::max(options.numLen, 1u) - 1);
@@ -741,7 +741,10 @@ namespace Quasi::Text {
             log10,
             options.pad
         );
-        return end - strbuf;
+        return Formatter<Str>::FormatTo(sw,
+            Str::Slice(strbuf, end - strbuf),
+            { options.width, options.alignment, options.pad, false }
+        );
     }
 
     usize NumberConversion::FormatFloating(StringWriter sw, f64 f, const FloatFormatter::FormatOptions& options) {
@@ -819,6 +822,11 @@ namespace Quasi::Text {
                     ENTER(ALIGN);
                     options.alignment = c == '<' ? Align::LEFT : c == '^' ? Align::CENTER : Align::RIGHT;
                     opt.Advance(1);
+                    if (!opt.IsEmpty() && Chr::IsDigit(opt[0])) {
+                        const auto [n, w] = ParsePartial<u32>(opt);
+                        options.width = w.Assert();
+                        opt.Advance(*n);
+                    }
                     break;
                 case '+': case ' ': case '-':
                     ENTER(SIGN);
@@ -840,7 +848,7 @@ namespace Quasi::Text {
                 case '6': case '7': case '8': case '9': {
                     ENTER(WIDTH);
                     const auto [n, w] = ParsePartial<u32>(opt);
-                    options.width = w.Assert();
+                    options.numLen = w.Assert();
                     opt.Advance(*n);
                     break;
                 }

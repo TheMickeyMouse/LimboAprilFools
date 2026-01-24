@@ -39,7 +39,7 @@ namespace Quasi::Graphics {
         renderCanvas.SetProjection(Math::Matrix3D::OrthoProjection({ 0, screenSize.AddZ(1) }));
 
         renderCanvas.UseShader(
-            "#shader vertex\n"
+            "// #shader vertex\n"
             "#version 450 core\n"
             "layout (location = 0) in vec2 position;"
             "layout (location = 1) in vec2 texCoord;"
@@ -61,7 +61,7 @@ namespace Quasi::Graphics {
             "    vSTUV = stuv;"
             "    vRenderPrim = renderPrim;"
             "}\n"
-            "#shader fragment\n"
+            "// #shader fragment\n"
             "#version 450 core\n"
             ""
             "layout (location = 0) out vec4 FragColor;"
@@ -153,7 +153,7 @@ namespace Quasi::Graphics {
 
     void Canvas::DrawSquare(const Math::fv2& position, float size, bool center) {
         const Math::fRect2D rect = center ?
-            Math::fRect2D::FromCenter(position, size / 2) :
+            Math::fRect2D::FromCenter(position, size) :
             Math::fRect2D::FromSize  (position, size);
         DrawRect(rect);
     }
@@ -169,14 +169,14 @@ namespace Quasi::Graphics {
 
     void Canvas::DrawRoundedSquare(const Math::fv2& position, float size, float radius, bool center) {
         const Math::fRect2D rect = center ?
-            Math::fRect2D::FromCenter(position, size / 2) :
+            Math::fRect2D::FromCenter(position, size) :
             Math::fRect2D::FromSize  (position, size);
         return DrawRoundedRect(rect, radius);
     }
 
     void Canvas::DrawVarRoundedSquare(const Math::fv2& position, float size, float tr, float br, float tl, float bl, bool center) {
         const Math::fRect2D rect = center ?
-            Math::fRect2D::FromCenter(position, size / 2) :
+            Math::fRect2D::FromCenter(position, size) :
             Math::fRect2D::FromSize  (position, size);
         return DrawVarRoundedRect(rect, tr, br, tl, bl);
     }
@@ -379,7 +379,7 @@ namespace Quasi::Graphics {
 
     void Canvas::DrawTexture(const Texture2D& texture, const Math::fv2& pos, const Math::fv2& size, bool center, const SpriteOptions& options) {
         const Math::fRect2D rect = center ?
-            Math::fRect2D::FromCenter(pos, size / 2) :
+            Math::fRect2D::FromCenter(pos, size) :
             Math::fRect2D::FromSize  (pos, size);
         DrawTextureEx(texture, rect, options);
     }
@@ -399,7 +399,7 @@ namespace Quasi::Graphics {
 
     void Canvas::DrawSTexture(const SubTexture& subtex, const Math::fv2& pos, const Math::fv2& size, bool center, const Math::fColor& tint) {
         const Math::fRect2D rect = center ?
-            Math::fRect2D::FromCenter(pos, size / 2) :
+            Math::fRect2D::FromCenter(pos, size) :
             Math::fRect2D::FromSize  (pos, size);
         DrawSTextureEx(subtex, rect, tint);
     }
@@ -477,6 +477,12 @@ namespace Quasi::Graphics {
                 }
                 default:;
             }
+        }
+    }
+
+    void Canvas::ShowHitboxes() {
+        for (Ref i : interactables) {
+            DrawSimpleRect(i->hitbox, { 1, 0.1f });
         }
     }
 
@@ -1534,8 +1540,12 @@ namespace Quasi::Graphics {
         Math::fv2 mousePos = io.Mouse.currPos.As<float>();
         mousePos.y = (float)GraphicsDevice::GetDeviceInstance().GetWindowSize().y - mousePos.y;
 
-        int mouseEventPress = (io.Mouse.AnyOnPress()   ? MouseEventType::CLICK : 0) |
-                              (io.Mouse.AnyOnRelease() ? MouseEventType::RELEASE : 0);
+        const int mouseEventPress = (io.Mouse.AnyOnPress()   ? MouseEventType::CLICK : 0) |
+                                    (io.Mouse.AnyOnRelease() ? MouseEventType::RELEASE : 0);
+
+        // this flags prevent other interactables from getting triggered when their
+        // hitboxes overlap.
+        bool alreadyTriggered = false;
         for (Ref i : interactables) {
             int event = MouseEventType::NONE;
 
@@ -1543,16 +1553,14 @@ namespace Quasi::Graphics {
                 if (i->hovered) {
                     event = MouseEventType::LEAVE;
                 }
-            } else { // enter
+            } else if (!alreadyTriggered) { // enter
                 event = MouseEventType::ENTER | mouseEventPress;
             }
 
-            if (event == MouseEventType::NONE) continue;
-
+            if (event == MouseEventType::NONE || !(event & i->capturedEvents)) continue;
 
             // send events
-            const bool shouldPassthrough = i->CaptureEvent((MouseEventType::E)event, io);
-            if (!shouldPassthrough) break;
+            alreadyTriggered |= !i->CaptureEvent((MouseEventType::E)event, io);
         }
     }
 
