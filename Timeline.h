@@ -9,6 +9,7 @@ class Effect {
 public:
     float time = 0, duration = 0;
 
+    Effect() = default;
     explicit Effect(float dura) : time(-1.0f / (60.0f * dura)), duration(dura) {}
     virtual ~Effect() = default;
     virtual void Init(LimboApp& app) {}
@@ -17,7 +18,7 @@ public:
     virtual void Finish(LimboApp& app) {}
 
     virtual bool Done() const { return time >= 1.0f; }
-    float ExtraTime() const { return (time - 1.0f) * duration; }
+    virtual float ExtraTime() const { return (time - 1.0f) * duration; }
     void AddTime(float dt) { time += dt / duration; }
 
     friend class Timeline;
@@ -44,6 +45,9 @@ public:
     Timeline() = default;
     explicit Timeline(Vec<Box<Effect>> effects);
 
+    OptRef<Effect> CurrentEffect() { return currentEffect; }
+
     void Anim(LimboApp& app, float dt);
     void LateAnim(LimboApp& app, float dt);
+    void Skip(LimboApp& app);
 };

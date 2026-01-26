@@ -42,13 +42,16 @@ void Timeline::LateAnim(LimboApp& app, float dt) {
     if (currentEffect) currentEffect->LateAnim(app, dt);
 
     if (!currentEffect || (frame < effects.Length() && currentEffect->Done())) {
-        const float extraTime = currentEffect ? currentEffect->ExtraTime() : 0;
-        if (currentEffect) currentEffect->Finish(app);
-        app.ResetKeyPos();
-
-        currentEffect = effects[frame].AsRef();
-        currentEffect->AddTime(extraTime);
-        currentEffect->Init(app);
-        ++frame;
+        Skip(app);
     }
+}
+
+void Timeline::Skip(LimboApp& app) {
+    const float extraTime = currentEffect ? currentEffect->ExtraTime() : 0;
+    if (currentEffect) currentEffect->Finish(app);
+
+    currentEffect = effects[frame].AsRef();
+    currentEffect->AddTime(extraTime);
+    currentEffect->Init(app);
+    ++frame;
 }

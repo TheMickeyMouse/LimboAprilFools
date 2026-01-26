@@ -1,5 +1,7 @@
 #pragma once
 #include "Timeline.h"
+#include "Effects/Bloom.h"
+#include "Effects/PostEffect.h"
 #include "GUI/Canvas.h"
 #include "Quasi/src/Graphics/GraphicsDevice.h"
 #include "miniaudio/miniaudio.h"
@@ -29,6 +31,24 @@ class LimboApp {
         void Finish(LimboApp& app) override;
     };
 
+    class Intensify : public Effect {
+    public:
+        Graphics::RenderObject<Graphics::Vertex2D> quadRender;
+        Graphics::PostEffect postEffect;
+        float innerRadius = 0, outerRadius = 0;
+        Math::iv2 aberrationOff = { 3, -2 };
+        Math::fColor vignetteTint = { 0, 0 };
+        bool enabled = false, manual = false;
+
+        Intensify() = default;
+        Intensify(Graphics::GraphicsDevice& gdevice);
+
+        void Anim(LimboApp& app, float dt) override;
+        void Reset(LimboApp& app);
+        void Use();
+        void Draw();
+    };
+
     static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
     static const Math::fv2 ORIGIN;
 
@@ -37,11 +57,13 @@ class LimboApp {
     ma_engine audioEngine;
     ma_sound music;
 
-    Graphics::RenderObject<Graphics::Vertex2D> vignette;
     ScreenShake screenShake;
-    float effectTimer = 0.0f;
+    Intensify intensify;
+
+    // Graphics::Bloom bloom;
 
     LimboKey keys[8];
+    OptRef<LimboKey> correctKey = nullptr;
     Array<int, 8> keyPermutation = { 0, 1, 2, 3, 4, 5, 6, 7 };
     f32 globalRotation = 0.0f, globalScale = 1.0f;
     bool showHitboxes = false;
@@ -104,8 +126,7 @@ public:
         void Anim(LimboApp& app, float dt) override;
     };
 
-    // not a permutation but used for animations
-    class GlowAnim : public Permutation {
+    class GlowAnim : public Effect {
         LimboKey& glowingKey;
         int flashCount = 3;
     public:
@@ -115,33 +136,49 @@ public:
         void Finish(LimboApp& app) override;
     };
 
-    class ReadyAnim : public Permutation {
+    class ReadyAnim : public Effect {
         int texIndex = 0;
     public:
-        explicit ReadyAnim(float dura) : Permutation(dura) {}
+        explicit ReadyAnim(float dura) : Effect(dura) {}
         ~ReadyAnim() override = default;
         void LateAnim(LimboApp& app, float dt) override;
+        void Finish(LimboApp& app) override;
     };
 
     struct KeyGizmo : Interactable {
         OptRef<LimboKey> key = nullptr;
+        OptRef<LimboApp> app;
         int keyIndex = 0;
         float realZ = 1.0f, zScale = 1.0f;
         KeyGizmo() : Interactable({}) {}
-        KeyGizmo(LimboKey& key, int index);
+        KeyGizmo(LimboApp& app, int i);
         ~KeyGizmo() override = default;
 
         bool CaptureEvent(MouseEventType::E e, IO::IO& io) override;
         void Update();
     };
 
-    class EndAnim : public Permutation {
+    class ChooseKeyAnim : public Effect {
         Array<KeyGizmo, 8> keyGizmos;
     public:
-        explicit EndAnim(float dura);
-        ~EndAnim() override = default;
+        explicit ChooseKeyAnim(float dura);
+        ~ChooseKeyAnim() override = default;
         void Init(LimboApp& app) override;
         void Anim(LimboApp& app, float dt) override;
+        void Finish(LimboApp& app) override;
+        float ExtraTime() const override;
+        bool Done() const override { return false; }
+    };
+
+    class EndAnim : public Effect {
+        OptRef<LimboKey> chosenKey = nullptr;
+    public:
+        explicit EndAnim(float dura) : Effect(dura) {}
+
+        void Init(LimboApp& app) override;
+        void Anim(LimboApp& app, float dt) override;
+
+        void ChooseKey(LimboKey& key);
         bool Done() const override { return false; }
     };
 };
