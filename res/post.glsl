@@ -3,13 +3,18 @@
 layout (local_size_x = 1, local_size_y = 1) in;
 layout (rgba32f, binding = 0) uniform readonly  image2D imgInput;
 layout (rgba32f, binding = 1) uniform writeonly image2D imgOutput;
+uniform sampler2D depth;
 uniform float innerRadius, outerRadius;
 uniform vec4 vignetteTint;
 uniform ivec2 aberrationOff;
+uniform bool vignetteOver, spotlight;
 
-vec4 over(vec4 a, vec4 b) { // a over b
-    float ba = b.a * (1 - a.a);
-    return vec4(a.rgb * a.a + b.rgb * ba, a.a + ba);
+vec4 mulalpha(vec4 col) {
+    return vec4(col.rgb * col.a, col.a);
+}
+
+vec4 over(vec4 a, vec4 b) { // a over b, a&b are premul'd
+    return a + b * (1 - a.a);
 }
 
 void main() {
@@ -22,9 +27,9 @@ void main() {
     abbColor.a = (abbColor.a + R.a + B.a) / 3;
 
     float dist = (length(uv) - innerRadius) / (outerRadius - innerRadius);
-    vec4 vignetteColor = mix(vec4(0), vignetteTint, clamp(dist, 0, 1));
 
-    vec4 result = over(abbColor, vignetteColor);
+    vec4 vignetteColor = vignetteTint * clamp(dist, 0, 1);
+    vec4 result = vignetteOver ? over(vignetteColor, abbColor) : over(abbColor, vignetteColor);
 
-    imageStore(imgOutput, xy, result.a == 0 ? vec4(0) : vec4(result.rgb / result.a, result.a));
+    imageStore(imgOutput, xy, result);
 }

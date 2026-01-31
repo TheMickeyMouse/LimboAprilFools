@@ -16,3 +16,7 @@ add_subdirectory(Quasi)
 target_link_directories(${PROJECT_NAME} PUBLIC lib)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Quasi)
+
+target_compile_options(LimboFools PRIVATE
+    "$<IF:$<CONFIG:Release>,-s,>"
+)

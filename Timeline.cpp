@@ -18,11 +18,6 @@ void CompoundEffect::Anim(LimboApp& app, float dt) {
     e->Anim(app, dt); f->Anim(app, dt);
 }
 
-void CompoundEffect::LateAnim(LimboApp& app, float dt) {
-    Effect::LateAnim(app, dt);
-    e->LateAnim(app, dt), f->LateAnim(app, dt);
-}
-
 void CompoundEffect::Finish(LimboApp& app) {
     Effect::Finish(app);
     e->Finish(app); f->Finish(app);
@@ -36,12 +31,9 @@ Timeline::Timeline(Vec<Box<Effect>> effects) : effects(std::move(effects)) {
 
 void Timeline::Anim(LimboApp& app, float dt) {
     if (currentEffect) currentEffect->Anim(app, dt);
-}
+    else return Skip(app);
 
-void Timeline::LateAnim(LimboApp& app, float dt) {
-    if (currentEffect) currentEffect->LateAnim(app, dt);
-
-    if (!currentEffect || (frame < effects.Length() && currentEffect->Done())) {
+    if (frame < effects.Length() && currentEffect->Done()) {
         Skip(app);
     }
 }

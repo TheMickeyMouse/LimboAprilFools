@@ -216,8 +216,8 @@ set(ALL_FILES
         src/Graphics/Image.cpp
         src/Graphics/GUI/Interactable.cpp
         src/Graphics/GUI/Interactable.h
-        src/Graphics/Effects/PostEffect.h
-        src/Graphics/Effects/PostEffect.cpp
+        ../PostEffect.h
+        ../PostEffect.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${ALL_FILES})

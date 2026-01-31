@@ -11,6 +11,10 @@ namespace Quasi::Graphics {
         return Memory::AllocateArrayUninit<u8>(w * h * 4);
     }
 
+    Image Image::Empty() {
+        return { nullptr, 0, 0 };
+    }
+
     Image Image::New(int w, int h) {
         return { AllocImage(w, h), w, h };
     }
@@ -33,14 +37,14 @@ namespace Quasi::Graphics {
         int w, h, BPPixel;
         stbi_set_flip_vertically_on_load(1);
         u8* localTexture = stbi_load_from_memory(pngbytes.Data(), (int)pngbytes.Length(), &w, &h, &BPPixel, 4);
-        return FromData(localTexture, w, h);
+        return localTexture ? FromData(localTexture, w, h) : Empty();
     }
 
     Image Image::LoadPNG(CStr fname) {
         int w, h, BPPixel;
         stbi_set_flip_vertically_on_load(1);
         u8* localTexture = stbi_load(fname.Data(), &w, &h, &BPPixel, 4);
-        return FromData(localTexture, w, h);
+        return localTexture ? FromData(localTexture, w, h) : Empty();
     }
 
     Image Image::CaptureScreen() {

@@ -1,7 +1,6 @@
 #pragma once
 #include "Timeline.h"
-#include "Effects/Bloom.h"
-#include "Effects/PostEffect.h"
+#include "PostEffect.h"
 #include "GUI/Canvas.h"
 #include "Quasi/src/Graphics/GraphicsDevice.h"
 #include "miniaudio/miniaudio.h"
@@ -33,12 +32,11 @@ class LimboApp {
 
     class Intensify : public Effect {
     public:
-        Graphics::RenderObject<Graphics::Vertex2D> quadRender;
         Graphics::PostEffect postEffect;
         float innerRadius = 0, outerRadius = 0;
         Math::iv2 aberrationOff = { 3, -2 };
         Math::fColor vignetteTint = { 0, 0 };
-        bool enabled = false, manual = false;
+        bool enabled = false, manual = false, vignetteForeground = false;
 
         Intensify() = default;
         Intensify(Graphics::GraphicsDevice& gdevice);
@@ -82,7 +80,11 @@ public:
     static Math::fv2 Project(Math::fv2 position, float z);
 
     void DrawKey(int index);
+    void DrawFrontKeys();
+    void DrawBackKeys();
     void DrawKeys();
+    void DrawTexW(Str name, const Math::fv2& pos, float w, float alpha = 1);
+    void DrawTexH(Str name, const Math::fv2& pos, float h, float alpha = 1);
 
     const Math::fColor& GetColor(int index, int shade) const;
     const CArray<Math::fColor, 3>& GetColorShades(int index) const;
@@ -141,7 +143,7 @@ public:
     public:
         explicit ReadyAnim(float dura) : Effect(dura) {}
         ~ReadyAnim() override = default;
-        void LateAnim(LimboApp& app, float dt) override;
+        void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
     };
 

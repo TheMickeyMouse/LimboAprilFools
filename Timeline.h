@@ -14,7 +14,6 @@ public:
     virtual ~Effect() = default;
     virtual void Init(LimboApp& app) {}
     virtual void Anim(LimboApp& app, float dt);
-    virtual void LateAnim(LimboApp& app, float dt) {}
     virtual void Finish(LimboApp& app) {}
 
     virtual bool Done() const { return time >= 1.0f; }
@@ -29,10 +28,9 @@ protected:
     Box<Effect> e, f;
 public:
     CompoundEffect(Box<Effect> e, Box<Effect> f);
-    virtual void Init(LimboApp& app);
-    virtual void Anim(LimboApp& app, float dt);
-    virtual void LateAnim(LimboApp& app, float dt);
-    virtual void Finish(LimboApp& app);
+    void Init(LimboApp& app) override;
+    void Anim(LimboApp& app, float dt) override;
+    void Finish(LimboApp& app) override;
 };
 
 class Timeline {
@@ -48,6 +46,5 @@ public:
     OptRef<Effect> CurrentEffect() { return currentEffect; }
 
     void Anim(LimboApp& app, float dt);
-    void LateAnim(LimboApp& app, float dt);
     void Skip(LimboApp& app);
 };

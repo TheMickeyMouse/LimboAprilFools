@@ -17,6 +17,7 @@ namespace Quasi::Graphics {
 
         static u8* AllocImage(int w, int h);
     public:
+        static Image Empty();
         static Image New(int w, int h);
         static Image SolidColor(const Math::uColor& color, int w, int h);
         static Image FromData(u8* imageData, int w, int h) { return { imageData, w, h }; }
