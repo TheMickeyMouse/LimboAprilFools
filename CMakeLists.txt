@@ -8,7 +8,9 @@ add_executable(LimboFools main.cpp
         LimboApp.h
         miniaudio/miniaudio.cpp
         Timeline.cpp
-        Timeline.h)
+        Timeline.h
+        System.h
+        System.cpp)
 
 add_subdirectory(OpenGLPort)
 add_subdirectory(Quasi)

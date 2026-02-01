@@ -60,6 +60,9 @@ namespace Quasi::Graphics {
         void FlipHorizontal();
         void FlipVertical();
         void Flip180();
+        // converts RGB to BGR pixel format or vice-versa; useful for alternative pixel sources like winapi.
+        // note this could also be avoided by just uploading to gpu using GL_BGRA.
+        void SwapBytes();
 
         void BlitImage(const Math::iv2& dest, const ImageView& image);
 

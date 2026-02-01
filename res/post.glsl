@@ -3,7 +3,7 @@
 layout (local_size_x = 1, local_size_y = 1) in;
 layout (rgba32f, binding = 0) uniform readonly  image2D imgInput;
 layout (rgba32f, binding = 1) uniform writeonly image2D imgOutput;
-uniform sampler2D depth;
+layout (rgba8,   binding = 2) uniform readonly  image2D background;
 uniform float innerRadius, outerRadius;
 uniform vec4 vignetteTint;
 uniform ivec2 aberrationOff;
@@ -24,12 +24,14 @@ void main() {
     vec4 abbColor = imageLoad(imgInput, xy);
     abbColor.r = R.r;
     abbColor.b = B.b;
-    abbColor.a = (abbColor.a + R.a + B.a) / 3;
+    // abbColor.a = (abbColor.a + R.a + B.a) / 3;
 
     float dist = (length(uv) - innerRadius) / (outerRadius - innerRadius);
 
     vec4 vignetteColor = vignetteTint * clamp(dist, 0, 1);
     vec4 result = vignetteOver ? over(vignetteColor, abbColor) : over(abbColor, vignetteColor);
+    result.rgb = mix(imageLoad(background, xy).rgb, result.rgb, result.a);
+    result.a = 1;
 
     imageStore(imgOutput, xy, result);
 }

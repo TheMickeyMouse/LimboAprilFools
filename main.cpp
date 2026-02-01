@@ -1,6 +1,11 @@
 #include "LimboApp.h"
+#include "System.h"
 
 int main() {
-    LimboApp limbo;
-    while (limbo.Run());
+    System::HideAllWindows();
+    // System::HideTaskbar();
+    {
+        LimboApp limbo;
+        while (limbo.Run());
+    }
 }

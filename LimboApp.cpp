@@ -1,4 +1,7 @@
 #include "LimboApp.h"
+#include "LimboApp.h"
+
+#include "System.h"
 #include "Utils/Algorithm.h"
 
 // A B C D
@@ -47,7 +50,8 @@ void LimboApp::Permutation::Finish(LimboApp& app) {
 
 LimboApp::Intensify::Intensify(Graphics::GraphicsDevice& gdevice)
     : Effect(9.65f),
-      postEffect({ (int)WIDTH, (int)HEIGHT }, Graphics::Shader::FromFileCompute(RES"post.glsl")) {}
+      postEffect({ (int)WIDTH, (int)HEIGHT }, Graphics::Shader::FromFileCompute(RES"post.glsl")),
+      background(Graphics::Texture2D::New(System::CaptureScreen(), { .format = Graphics::TextureFormat::BGRA })) {}
 
 void LimboApp::Intensify::Anim(LimboApp& app, float dt) {
     if (manual) {
@@ -65,7 +69,7 @@ void LimboApp::Intensify::Anim(LimboApp& app, float dt) {
 
     innerRadius    = std::lerp(1.1f, 0.0f, time);
     outerRadius    = std::lerp(1.4f, 1.0f, time);
-    vignetteTint.a = std::lerp(0.0f, 0.8f, time);
+    vignetteTint.a = std::lerp(0.0f, 0.95f, time);
     aberrationOff  = { (int)(3 + 10.0f * time), (int)(-2 - 6.0f * time) };
     Draw();
     app.globalScale = std::lerp(1.0f, 1.2f, time);
@@ -89,6 +93,7 @@ void LimboApp::Intensify::Draw() {
     postEffect.shader.SetUniformColor("vignetteTint",  vignetteTint);
     postEffect.shader.SetUniformIv2  ("aberrationOff", aberrationOff);
     postEffect.shader.SetUniformInt  ("vignetteOver",  vignetteForeground);
+    background.BindImageTexture(2, 0, Graphics::Access::READ, Graphics::TextureIFormat::RGBA_8);
     postEffect.ApplyEffect();
 }
 
@@ -105,7 +110,7 @@ const Math::fv2 LimboApp::TARGET_POSITIONS[8] = {
     { WIDTH * 0.8f, HEIGHT * 0.5f - WIDTH * 0.1f },
 };
 
-LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH, (int)HEIGHT }, { .decorated = false, /*.floating = true, */.maximized = true, .transparent = true })) {
+LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH, (int)HEIGHT }, { .fullscreen = true })) {
     if (ma_engine_init(nullptr, &audioEngine) != MA_SUCCESS) {
         Debug::QError$("Miniaudio Failed to Load!");
     }
@@ -194,7 +199,8 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
             Boxs::New(ShufflePerm   { P_SHIFT_CW,    0.25f * INV_SPEED }),
             Boxs::New(ShufflePerm   { P_SHIFT_CCW,   0.25f * INV_SPEED }),
             Boxs::New(ChooseKeyAnim {                1.00f * INV_SPEED }),
-            Boxs::New(EndAnim       {                1.00f * INV_SPEED }),
+            Boxs::New(EndAnim       {                8.00f * INV_SPEED }),
+            Boxs::New(Finish        { 0 }),
         })
     };
 
@@ -217,9 +223,13 @@ LimboApp::LimboApp() : gdevice(Graphics::GraphicsDevice::Initialize({ (int)WIDTH
 
 LimboApp::~LimboApp() {
     ma_engine_uninit(&audioEngine);
+
+    // System::ShowTaskbar();
 }
 
 bool LimboApp::Run() {
+    if (finished) return false;
+
     intensify.Use();
 
     gdevice.Begin();
@@ -476,7 +486,7 @@ void LimboApp::ReadyAnim::Anim(LimboApp& app, float dt) {
         case 4: { // GO!
             const float y = CubicEase(t * 18), alpha = 1 - CubicEase((t - (dur - 0.05f)) * 18);
             const Math::fv2 pos = Math::fv2 { WIDTH * 0.5f, HEIGHT * y * 0.5f } + sOff;
-            app.DrawTexH(tex, pos, WIDTH * 0.15f * std::exp(alpha), alpha);
+            app.DrawTexH(tex, pos, WIDTH * 0.15f * std::exp(1 - alpha), alpha);
             break;
         }
         default:;
@@ -558,12 +568,12 @@ void LimboApp::ChooseKeyAnim::Anim(LimboApp& app, float dt) {
         key.color[2].LerpTowards(app.GetColor(i, h ? 0 : 2), 0.2f);
     }
 
-    const float handY = HEIGHT * (0.46f - 2 * std::exp(0.4f - time) + 0.04f * std::sin(0.6f * time));
+    const float handY = HEIGHT * (0.46f - 3 * std::exp(0.4f - time) + 0.04f * std::sin(0.6f * time));
     const float a = std::min(time, 1.0f), w = WIDTH * 0.4f * (1 + std::min(time * 0.6f, 1.0f));
     app.DrawTexW("hands",  { WIDTH / 2, handY }, w, a);
     app.DrawTexW("icons",  { WIDTH / 2, HEIGHT * (0.86f + std::exp(3 * (5.0f - time))) }, WIDTH);
 
-    const float chooseY = HEIGHT * (0.5f + 1.4f * std::exp(0.6f - time) + 0.04f * std::sin(0.6f * time + 0.7f));
+    const float chooseY = HEIGHT * (0.5f + 1.8f * std::exp(0.6f - time) + 0.04f * std::sin(0.6f * time + 0.7f));
     app.DrawBackKeys();
     app.DrawTexW("choose", { WIDTH / 2, chooseY }, w * 0.45f, a);
     app.DrawTexH("light", ORIGIN, HEIGHT, 0.2f * std::min(time, 2.0f));
@@ -595,6 +605,12 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
     app.canvas.DrawRect({ 0, { WIDTH, HEIGHT } });
 
     static constexpr float T_SHOW_CORRECT = 2.0f;
+
+    if (time > 8.0f) {
+        app.timeline.Skip(app);
+        app.timeline.CurrentEffect().As<class Finish>()->SetEnding(!app.correctKey.RefEquals(chosenKey));
+        app.finished = true;
+    }
 
     if (time > T_SHOW_CORRECT) {
         app.correctKey->color[0].LerpTowards(app.GetColor(3, 0) * 1.3f, 0.05f);
@@ -630,6 +646,22 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
     app.DrawKeys();
 }
 
+void LimboApp::EndAnim::Finish(LimboApp& app) {
+    Effect::Finish(app);
+
+}
+
 void LimboApp::EndAnim::ChooseKey(LimboKey& key) {
     chosenKey = key;
+}
+
+void LimboApp::Finish::Init(LimboApp& app) {
+    Effect::Init(app);
+
+    System::ChangeWallpaper(L"losers_background.png");
+    System::HideIcons();
+}
+
+void LimboApp::Finish::SetEnding(bool incorrect) {
+    this->incorrect = incorrect;
 }

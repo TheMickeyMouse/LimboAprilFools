@@ -37,6 +37,7 @@ class LimboApp {
         Math::iv2 aberrationOff = { 3, -2 };
         Math::fColor vignetteTint = { 0, 0 };
         bool enabled = false, manual = false, vignetteForeground = false;
+        Graphics::Texture2D background;
 
         Intensify() = default;
         Intensify(Graphics::GraphicsDevice& gdevice);
@@ -67,6 +68,7 @@ class LimboApp {
     bool showHitboxes = false;
 
     Timeline timeline;
+    bool finished = false;
     static const Math::fv2 TARGET_POSITIONS[8];
 
     Graphics::TextureAtlas texAtlas;
@@ -179,8 +181,17 @@ public:
 
         void Init(LimboApp& app) override;
         void Anim(LimboApp& app, float dt) override;
+        void Finish(LimboApp& app) override;
 
         void ChooseKey(LimboKey& key);
         bool Done() const override { return false; }
+    };
+
+    class Finish : public Effect {
+        bool incorrect = true;
+    public:
+        explicit Finish(float dura) : Effect(dura) {}
+        void Init(LimboApp& app) override;
+        void SetEnding(bool incorrect);
     };
 };

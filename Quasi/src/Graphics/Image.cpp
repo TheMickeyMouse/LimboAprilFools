@@ -147,6 +147,24 @@ namespace Quasi::Graphics {
         Pixels().Reverse();
     }
 
+    void Image::SwapBytes() {
+        u32* pixels = Memory::TransmutePtr<u32>(imageData.Data());
+        for (usize i = 0; i < width * height; ++i) {
+            // for anyone who asks: i chose the names k & u unconsciously,
+            // but there is a high likely hood i just them because of K + U = E. xd
+
+            // turns pixels in format RGBA to BGRA. a pixel is a u32.
+            // k stores R0B0, k >> 16 = 00R0, k << 16 = B000.
+            if constexpr (Memory::IsBigEndian()) {
+                const u32 k = pixels[i] & 0xFF00FF00;
+                pixels[i] += (k >> 16) + (k << 16) - k;
+            } else {
+                const u32 k = pixels[i] & 0x00FF00FF;
+                pixels[i] += (k >> 16) + (k << 16) - k;
+            }
+        }
+    }
+
     void Image::BlitImage(const Math::iv2& dest, const ImageView& image) {
         u8* begin = (u8*)&PixelData()[dest.x + dest.y * width];
         for (int y = 0; y < image.height; y++) {

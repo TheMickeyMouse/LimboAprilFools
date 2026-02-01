@@ -21,7 +21,8 @@ namespace Quasi::Graphics {
              maximized     = false,
              transparent   = false,
              focusOnShow   = true,
-             passthru      = false;
+             passthru      = false,
+             fullscreen    = false;
         Math::iv2 beginPosition;
     };
 
