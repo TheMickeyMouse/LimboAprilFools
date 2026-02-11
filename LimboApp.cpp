@@ -261,7 +261,7 @@ LimboApp::LimboApp() : gdevice(GraphicsDevice::Initialize({ (int)WIDTH, (int)HEI
     // ma_sound_seek_to_pcm_frame(&music, SKIP_FRAME_COUNT);
     intensify = { gdevice };
 
-#if 0
+#if 1
     ma_sound_init_from_file(&audioEngine, RES"LimboMus.mp3",  0, nullptr, nullptr, &music);
     ma_sound_set_pitch(&music, 1.0f / INV_SPEED);
     ma_sound_set_volume(&music, 0.2f);
@@ -563,7 +563,6 @@ bool LimboApp::KeyGizmo::CaptureEvent(MouseEventType::E e, IO::IO& io) {
 }
 
 void LimboApp::KeyGizmo::Update() {
-    // if (hovered) app->canvas.DrawRect(hitbox);
     zScale = std::lerp(zScale, hovered ? 0.8f : 1.0f, 0.08f);
     key->z = realZ * zScale;
     key->glowIntensity = std::lerp(key->glowIntensity, hovered ? 0.5f : 0.12f, 0.08f);
@@ -571,9 +570,6 @@ void LimboApp::KeyGizmo::Update() {
     const float hitboxScale = KEY_SIZE * Z_CENTER / (realZ * (hovered ? 0.65f : 1.0f));
     hitbox = fRect2D::FromCenter(Project(key->position, key->z), hitboxScale * fv2 { 1.1f, 0.8f });
     capturedEvents = key->z > 0.7f ? 0 : ~0;
-    //
-    // app->canvas.Fill({ hovered ? 1.0f : 0.0f, capturedEvents == ~0 ? 1.0f : 0.0f, 0.0f, 1.0f });
-    // app->canvas.DrawRect(hitbox);
 }
 
 LimboApp::ChooseKeyAnim::ChooseKeyAnim(float dura) : Effect(dura) {
@@ -674,9 +670,10 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
                     ma_engine_play_sound(&app.audioEngine, RES"vine-boom.mp3", nullptr);
                 break;
             case BEFORE_CAPTURE:
-                if (!correct)
+                if (!correct) {
                     ma_engine_play_sound(&app.audioEngine, RES"mypc.mp3", nullptr);
-                app.intensify.EnterExposure(app);
+                    app.intensify.EnterExposure(app);
+                }
                 break;
             case ERROR:
                 if (!correct) {

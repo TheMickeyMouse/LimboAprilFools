@@ -14,7 +14,7 @@ namespace Quasi::IO {
     class IO;
 
     enum class CursorShape {
-        DEFAULT = 0x00036001, ARROW = DEFAULT,
+        DEFAULT = 0, ARROW = DEFAULT,
         TEXT_SELECT,
         CROSSHAIR,
         HAND,
@@ -39,7 +39,7 @@ namespace Quasi::IO {
         Math::dv2 currPos, prevPos, posDelta, scroll, scrollDelta;
         std::queue<Math::dv2> queuedScrolls;
         CursorShape cursorShape = CursorShape::DEFAULT;
-        GLFWcursor* cursor = nullptr;
+        static GLFWcursor* DEFAULT_CURSOR_SHAPES[10];
 
         Ref<IO> io;
 

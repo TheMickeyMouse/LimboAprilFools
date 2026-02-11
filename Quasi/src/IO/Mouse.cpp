@@ -9,6 +9,8 @@ namespace Quasi::IO {
     GLFWwindow* MouseType::inputWindow() { return io->gdevice->GetWindow(); }
     const GLFWwindow* MouseType::inputWindow() const { return io->gdevice->GetWindow(); }
 
+    GLFWcursor* MouseType::DEFAULT_CURSOR_SHAPES[10] { nullptr };
+
     MouseType::MouseType(IO& io) : io(io) {
         glfwSetMouseButtonCallback(inputWindow(),
             [](GLFWwindow* window, int button, int action, int mods) {
@@ -19,6 +21,10 @@ namespace Quasi::IO {
             [](GLFWwindow* window, double xOff, double yOff) {
                 IO::GetIOPtr(window)->Mouse.OnGlfwScrollCallback(window, xOff, yOff);
             });
+
+        for (int i = 0; i < 10; ++i) {
+            DEFAULT_CURSOR_SHAPES[i] = glfwCreateStandardCursor(i + GLFW_ARROW_CURSOR);
+        }
     }
 
     void MouseType::Update() {
@@ -43,6 +49,8 @@ namespace Quasi::IO {
             scroll += scrollEvent;
             queuedScrolls.pop();
         }
+
+        glfwSetCursor(inputWindow(), DEFAULT_CURSOR_SHAPES[(int)cursorShape]);
     }
 
     void MouseType::OnGlfwMouseCallback(GLFWwindow* window, int mouse, int action, int mods) {
@@ -164,18 +172,6 @@ namespace Quasi::IO {
     }
 
     void MouseType::SetShape(CursorShape shape) {
-        static auto* HAND_CURSOR = [] {
-            unsigned char pixels[16 * 16 * 4];
-            memset(pixels, 0xff, sizeof(pixels));
-
-            GLFWimage image;
-            image.width = 16;
-            image.height = 16;
-            image.pixels = pixels;
-            return glfwCreateCursor(&image, 0, 0);
-        } ();
-        // if (shape == cursorShape) return;
-        // cursorShape = shape;
-        glfwSetCursor(inputWindow(), shape == CursorShape::HAND ? HAND_CURSOR : nullptr);
+        cursorShape = shape;
     }
 }

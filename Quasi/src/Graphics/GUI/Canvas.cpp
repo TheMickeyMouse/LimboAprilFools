@@ -1546,18 +1546,20 @@ namespace Quasi::Graphics {
 
         // this flags prevent other interactables from getting triggered when their
         // hitboxes overlap.
-        bool alreadyTriggered = false, entered = false, left = false;
+        bool alreadyTriggered = false, entered = false;
         for (Ref i : interactables) {
             int event = MouseEventType::NONE;
 
-            const bool enters = i->hitbox.Contains(mousePos);
+            const bool enters = i->hitbox.Contains(mousePos), capturesEnter = i->capturedEvents & MouseEventType::ENTER;
+            entered |= enters && capturesEnter;
             // leave: either the mouse leaves the hitbox OR the object becomes disabled
-            if (i->hovered && (!enters || !(i->capturedEvents & MouseEventType::ENTER))) {
+            if (i->hovered && (!enters || !capturesEnter)) {
                 event = MouseEventType::LEAVE;
             } else
             // enter: the mouse must enter the hitbox AND not enter any previous objects that lay above it.
-            if (enters && !i->hovered && !alreadyTriggered) {
-                event = MouseEventType::ENTER | mouseEventPress;
+            if (enters && !alreadyTriggered) {
+                if (!i->hovered) event = MouseEventType::ENTER;
+                event |= mouseEventPress;
             }
 
             if (event == MouseEventType::NONE) continue;
@@ -1565,15 +1567,9 @@ namespace Quasi::Graphics {
             if (!(event & (i->capturedEvents | 0b1010))) continue;
 
             // send events, also record cursor shape updates
-            entered |= event & MouseEventType::ENTER;
-            left    |= event & MouseEventType::LEAVE;
             alreadyTriggered |= !i->CaptureEvent((MouseEventType::E)event, io);
         }
-        if (entered) {
-            GraphicsDevice::GetDeviceInstance().GetIO().Mouse.SetShape(IO::CursorShape::HAND);
-        } else if (left) {
-            GraphicsDevice::GetDeviceInstance().GetIO().Mouse.SetShape(IO::CursorShape::DEFAULT);
-        }
+        GraphicsDevice::GetDeviceInstance().GetIO().Mouse.SetShape(entered ? IO::CursorShape::HAND : IO::CursorShape::DEFAULT);
     }
 
     void Canvas::AddInteractable(Ref<Interactable> inter) {
