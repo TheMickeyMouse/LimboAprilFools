@@ -5,16 +5,24 @@
 #include "Quasi/src/Graphics/GraphicsDevice.h"
 #include "miniaudio/miniaudio.h"
 
-using namespace Quasi;
+
+struct Palette : Array<fColor, 3> {
+    Palette() = default;
+    Palette(const fColor& a, const fColor& b, const fColor& c) : Array(a, b, c) {};
+
+    Palette operator*(float x) const;
+    void LerpTowards(const Palette& p, float t);
+    Palette Lerp(const Palette& p, float t) const;
+};
 
 struct LimboKey {
-    Math::fv2 position;
+    fv2 position;
     float scale = 1, z = 1, glowIntensity = 0.12f;
-    Math::fColor color[3];
+    Palette colors;
 };
 
 struct ScreenShake {
-    Math::fv2 offset;
+    fv2 offset;
     float amplitude = 0.0f;
     void Trigger(float amp);
     void Update(float dt);
@@ -32,27 +40,29 @@ class LimboApp {
 
     class Intensify : public Effect {
     public:
-        Graphics::PostEffect postEffect;
+        PostEffect postEffect;
         float innerRadius = 0, outerRadius = 0;
-        Math::iv2 aberrationOff = { 3, -2 };
-        Math::fColor vignetteTint = { 0, 0 };
-        bool enabled = false, manual = false, vignetteForeground = false;
-        Graphics::Texture2D background;
+        fv2 aberrationOff = { 3 / WIDTH, -2 / HEIGHT };
+        fColor vignetteTint = { 0, 0 };
+        enum State { USE_ANIM, NO_ANIM, MANUAL, CAPTURE, USE_EXPOSURE, DISABLED } state = NO_ANIM;
+        bool vignetteForeground = false;
+        Texture2D background, temp;
 
         Intensify() = default;
-        Intensify(Graphics::GraphicsDevice& gdevice);
+        Intensify(GraphicsDevice& gdevice);
 
         void Anim(LimboApp& app, float dt) override;
         void Reset(LimboApp& app);
+        void EnterExposure(LimboApp& app);
         void Use();
         void Draw();
     };
 
     static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
-    static const Math::fv2 ORIGIN;
+    static const fv2 ORIGIN;
 
-    Graphics::GraphicsDevice gdevice;
-    Graphics::Canvas canvas { gdevice };
+    GraphicsDevice gdevice;
+    Canvas canvas { gdevice };
     ma_engine audioEngine;
     ma_sound music;
 
@@ -69,27 +79,28 @@ class LimboApp {
 
     Timeline timeline;
     bool finished = false;
-    static const Math::fv2 TARGET_POSITIONS[8];
+    static const fv2 TARGET_POSITIONS[8];
 
-    Graphics::TextureAtlas texAtlas;
-    Math::fColor colorPalette[8][3];
+    TextureAtlas texAtlas;
+    Palette colorPalette[8];
 public:
     LimboApp();
     ~LimboApp();
 
     bool Run();
 
-    static Math::fv2 Project(Math::fv2 position, float z);
+    static fv2 Project(fv2 position, float z);
 
     void DrawKey(int index);
     void DrawFrontKeys();
     void DrawBackKeys();
     void DrawKeys();
-    void DrawTexW(Str name, const Math::fv2& pos, float w, float alpha = 1);
-    void DrawTexH(Str name, const Math::fv2& pos, float h, float alpha = 1);
+    void DrawTexW(Str name, const fv2& pos, float w, float alpha = 1);
+    void DrawTexH(Str name, const fv2& pos, float h, float alpha = 1);
+    void DrawTexHR(Str name, const fv2& pos, float h, float alpha = 1, float angle = 0);
 
-    const Math::fColor& GetColor(int index, int shade) const;
-    const CArray<Math::fColor, 3>& GetColorShades(int index) const;
+    const fColor& GetColor(int index, int shade) const;
+    const Palette& GetColorShades(int index) const;
     const LimboKey& KeyAt(int index) const;
     LimboKey& KeyAt(int index);
 
@@ -176,6 +187,10 @@ public:
 
     class EndAnim : public Effect {
         OptRef<LimboKey> chosenKey = nullptr;
+        bool correct = false;
+        enum State { BEGIN, SHOW_CORRECT, BOOM, BEFORE_CAPTURE, MISSILE, ERROR, END } state = BEGIN;
+        Texture2D missileSheet;
+        Interactable middleErrorMessage = { { { 704.5, 396.5 }, { 1215.5, 683.5 } } };
     public:
         explicit EndAnim(float dura) : Effect(dura) {}
 
@@ -183,7 +198,7 @@ public:
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
 
-        void ChooseKey(LimboKey& key);
+        void ChooseKey(LimboApp& app, LimboKey& key);
         bool Done() const override { return false; }
     };
 

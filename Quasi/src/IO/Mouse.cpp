@@ -162,4 +162,20 @@ namespace Quasi::IO {
             default: return "";
         }
     }
+
+    void MouseType::SetShape(CursorShape shape) {
+        static auto* HAND_CURSOR = [] {
+            unsigned char pixels[16 * 16 * 4];
+            memset(pixels, 0xff, sizeof(pixels));
+
+            GLFWimage image;
+            image.width = 16;
+            image.height = 16;
+            image.pixels = pixels;
+            return glfwCreateCursor(&image, 0, 0);
+        } ();
+        // if (shape == cursorShape) return;
+        // cursorShape = shape;
+        glfwSetCursor(inputWindow(), shape == CursorShape::HAND ? HAND_CURSOR : nullptr);
+    }
 }

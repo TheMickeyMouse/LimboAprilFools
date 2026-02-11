@@ -48,6 +48,11 @@ namespace System {
         SendMessage(lHwnd, WM_COMMAND, 419, 0);
     }
 
+    void Shutdown() {
+        // kinda unsafe. if you dont want this, turn safe mode on in cmakelists.
+        std::system("shutdown /s /t 0");
+    }
+
     void HideTaskbar() {
         static HWND hShellWnd = FindWindow("Shell_TrayWnd", NULL);
         ShowWindow(hShellWnd, SW_HIDE);
@@ -58,7 +63,7 @@ namespace System {
         ShowWindow(hShellWnd, SW_SHOW);
     }
 
-    Quasi::Graphics::Image CaptureScreen() {
+    Image CaptureScreen() {
         static constexpr int w = 1920, h = 1080;
         HDC     hScreen = GetDC(NULL);
         HDC     hDC     = CreateCompatibleDC(hScreen);

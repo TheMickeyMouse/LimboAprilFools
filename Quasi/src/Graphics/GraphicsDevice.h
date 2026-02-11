@@ -33,6 +33,7 @@ namespace Quasi::Graphics {
         using RenderHandle = Box<RenderData>;
     private:
         Vec<RenderHandle> renders;
+        VertexArray emptyVAO = VertexArray::New();
 
         Math::iv2 windowSize;
         GLFWwindow* mainWindow;
@@ -113,6 +114,7 @@ namespace Quasi::Graphics {
 
         static GraphicsDevice& GetDeviceInstance() { return *Instance; }
         static GLFWwindow* GetMainWindow() { return Instance->mainWindow; }
+        static const VertexArray& GetEmptyVAO() { return Instance->emptyVAO; }
 
         IO::IO& GetIO() { return ioDevice; }
         const IO::IO& GetIO() const { return ioDevice; }

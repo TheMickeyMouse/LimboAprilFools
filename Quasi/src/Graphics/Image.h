@@ -25,9 +25,9 @@ namespace Quasi::Graphics {
         static Image LoadPNGBytes(Bytes pngbytes);
         static Image LoadPNG(CStr fname);
 
-        static Image CaptureScreen();
-        static Image CaptureScreen(int x, int y, int w, int h);
-        static Image CaptureScreen(const Math::iRect2D& screenRect);
+        static Image CaptureScreen(bool flip = true);
+        static Image CaptureScreen(int x, int y, int w, int h, bool flip = true);
+        static Image CaptureScreen(const Math::iRect2D& screenRect, bool flip = true);
 
         ImageView AsView() const;
         ImageView SubImage(int x, int y, int w, int h) const;

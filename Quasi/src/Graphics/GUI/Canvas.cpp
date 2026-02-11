@@ -78,7 +78,7 @@ namespace Quasi::Graphics {
             "    vec4 color = vColor;"
             "    if (samplerID != -1 && prim != 6) color *= texture(u_textures[samplerID], vTexCoord);"
             // TEMPORARY CHANGE: WE DONT NEED THIS
-            // "    switch (prim) {"
+            "    switch (prim) {"
             // "        case 1: {"
             // "            float dist = 1 - length(vSTUV.xy);"
             // "            color.a = clamp(0.5 + dist / fwidth(dist), 0.0, 1.0);"
@@ -103,14 +103,14 @@ namespace Quasi::Graphics {
             // "            color.a = clamp(0.5 + (invert ? 1 : -1) * dist / fwidth(dist), 0.0, 1.0);"
             // "            break;"
             // "        }"
-            // "        case 6: {"
-            // "           float distance = texture(u_textures[samplerID], vTexCoord).r - 0.5;"
-            // "           float ds = fwidth(distance);"
-            // "           color.a = clamp(0.5 + distance / ds, 0.0, 1.0);"
-            // // "           color = texture(u_textures[samplerID], vTexCoord);"
-            // "           break;"
-            // "        }"
-            // "    }"
+            "        case 6: {"
+            "           float distance = texture(u_textures[samplerID], vTexCoord).r - 0.5;"
+            "           float ds = fwidth(distance);"
+            "           color.a = clamp(0.5 + distance / ds, 0.0, 1.0);"
+            // "           color = texture(u_textures[samplerID], vTexCoord);"
+            "           break;"
+            "        }"
+            "    }"
             "    FragColor = vec4(color.rgb * color.a, color.a);"
             "}"
         );
@@ -1546,22 +1546,33 @@ namespace Quasi::Graphics {
 
         // this flags prevent other interactables from getting triggered when their
         // hitboxes overlap.
-        bool alreadyTriggered = false;
+        bool alreadyTriggered = false, entered = false, left = false;
         for (Ref i : interactables) {
             int event = MouseEventType::NONE;
 
-            if (!i->hitbox.Contains(mousePos)) { // leave
-                if (i->hovered) {
-                    event = MouseEventType::LEAVE;
-                }
-            } else if (!alreadyTriggered) { // enter
+            const bool enters = i->hitbox.Contains(mousePos);
+            // leave: either the mouse leaves the hitbox OR the object becomes disabled
+            if (i->hovered && (!enters || !(i->capturedEvents & MouseEventType::ENTER))) {
+                event = MouseEventType::LEAVE;
+            } else
+            // enter: the mouse must enter the hitbox AND not enter any previous objects that lay above it.
+            if (enters && !i->hovered && !alreadyTriggered) {
                 event = MouseEventType::ENTER | mouseEventPress;
             }
 
-            if (event == MouseEventType::NONE || !(event & i->capturedEvents)) continue;
+            if (event == MouseEventType::NONE) continue;
+            // we still want to send 'leave' and 'release' events even if it's disabled
+            if (!(event & (i->capturedEvents | 0b1010))) continue;
 
-            // send events
+            // send events, also record cursor shape updates
+            entered |= event & MouseEventType::ENTER;
+            left    |= event & MouseEventType::LEAVE;
             alreadyTriggered |= !i->CaptureEvent((MouseEventType::E)event, io);
+        }
+        if (entered) {
+            GraphicsDevice::GetDeviceInstance().GetIO().Mouse.SetShape(IO::CursorShape::HAND);
+        } else if (left) {
+            GraphicsDevice::GetDeviceInstance().GetIO().Mouse.SetShape(IO::CursorShape::DEFAULT);
         }
     }
 

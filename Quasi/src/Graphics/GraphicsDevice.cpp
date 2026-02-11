@@ -25,6 +25,7 @@ namespace Quasi::Graphics {
 
     void GraphicsDevice::Quit() {
         DeleteAllRenders(); // delete gl objects
+        emptyVAO.Destroy();
         glfwSetWindowShouldClose(mainWindow, true);
     }
 

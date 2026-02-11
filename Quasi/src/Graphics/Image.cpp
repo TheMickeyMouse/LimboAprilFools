@@ -47,22 +47,22 @@ namespace Quasi::Graphics {
         return localTexture ? FromData(localTexture, w, h) : Empty();
     }
 
-    Image Image::CaptureScreen() {
+    Image Image::CaptureScreen(bool flip) {
         const Math::iv2 size = GraphicsDevice::GetDeviceInstance().GetWindowSize();
-        return CaptureScreen(0, 0, size.x, size.y);
+        return CaptureScreen(0, 0, size.x, size.y, flip);
     }
 
-    Image Image::CaptureScreen(int x, int y, int w, int h) {
+    Image Image::CaptureScreen(int x, int y, int w, int h, bool flip) {
         u8* screenBuf = AllocImage(w, h);
         // note: this returns the screen but flipped horizontally
         GL::ReadPixels(x, y, w, h, GL::RGBA, GL::UNSIGNED_BYTE, screenBuf);
         Image screen = { screenBuf, w, h };
-        screen.FlipHorizontal();
+        if (flip) screen.FlipVertical();
         return screen;
     }
 
-    Image Image::CaptureScreen(const Math::iRect2D& screenRect) {
-        return CaptureScreen(screenRect.min.x, screenRect.min.y, screenRect.Width(), screenRect.Height());
+    Image Image::CaptureScreen(const Math::iRect2D& screenRect, bool flip) {
+        return CaptureScreen(screenRect.min.x, screenRect.min.y, screenRect.Width(), screenRect.Height(), flip);
     }
 
     ImageView Image::AsView() const {

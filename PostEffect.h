@@ -4,19 +4,20 @@
 #include "GLs/Shader.h"
 #include "GLs/Texture.h"
 
-namespace Quasi::Graphics {
-    struct PostEffect {
-        FrameBuffer frameBuf;
-        Texture2D screenTex, output;
-        RenderBuffer depthBuffer;
-        Math::iv2 screenDim;
+using namespace Quasi::Math;
+using namespace Quasi::Graphics;
 
-        Shader shader;
+struct PostEffect {
+    FrameBuffer frameBuf;
+    Texture2D screenTex;
+    RenderBuffer depthBuffer;
+    iv2 screenDim;
 
-        PostEffect() = default;
-        PostEffect(const Math::iv2& screenDim, Shader&& shader);
+    Shader shader;
 
-        void SetToRenderTarget();
-        void ApplyEffect();
-    };
-}
+    PostEffect() = default;
+    PostEffect(const iv2& screenDim, Shader&& shader);
+
+    void SetToRenderTarget();
+    void ApplyEffect();
+};

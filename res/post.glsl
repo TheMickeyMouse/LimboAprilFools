@@ -1,27 +1,31 @@
-#version 430 core
+// #shader vertex
+#version 330 core
 
-layout (local_size_x = 1, local_size_y = 1) in;
-layout (rgba32f, binding = 0) uniform readonly  image2D imgInput;
-layout (rgba32f, binding = 1) uniform writeonly image2D imgOutput;
-layout (rgba8,   binding = 2) uniform readonly  image2D background;
+out vec2 vPosition;
+
+void main() {
+    gl_Position = vec4(vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3))[gl_VertexID], 0, 1);
+    vPosition = gl_Position.xy * 0.5 + 0.5;
+}
+// #shader fragment
+#version 330 core
+layout (location = 0) out vec4 glColor;
+in vec2 vPosition;
+
+uniform sampler2D background, screenTex;
 uniform float innerRadius, outerRadius;
 uniform vec4 vignetteTint;
-uniform ivec2 aberrationOff;
+uniform vec2 aberrationOff;
 uniform bool vignetteOver, spotlight;
-
-vec4 mulalpha(vec4 col) {
-    return vec4(col.rgb * col.a, col.a);
-}
 
 vec4 over(vec4 a, vec4 b) { // a over b, a&b are premul'd
     return a + b * (1 - a.a);
 }
 
 void main() {
-    ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
-    vec2 uv = (vec2(xy) / vec2(gl_NumWorkGroups.xy) * 2) - 1;
-    vec4 R = imageLoad(imgInput, xy + aberrationOff), B = imageLoad(imgInput, xy - aberrationOff);
-    vec4 abbColor = imageLoad(imgInput, xy);
+    vec2 uv = (vPosition * 2) - 1;
+    vec4 R = texture(screenTex, vPosition + aberrationOff), B = texture(screenTex, vPosition - aberrationOff);
+    vec4 abbColor = texture(screenTex, vPosition);
     abbColor.r = R.r;
     abbColor.b = B.b;
     // abbColor.a = (abbColor.a + R.a + B.a) / 3;
@@ -30,8 +34,8 @@ void main() {
 
     vec4 vignetteColor = vignetteTint * clamp(dist, 0, 1);
     vec4 result = vignetteOver ? over(vignetteColor, abbColor) : over(abbColor, vignetteColor);
-    result.rgb = mix(imageLoad(background, xy).rgb, result.rgb, result.a);
+    result.rgb = mix(texture(background, vPosition).rgb, result.rgb, result.a);
     result.a = 1;
 
-    imageStore(imgOutput, xy, result);
+    glColor = result;
 }
