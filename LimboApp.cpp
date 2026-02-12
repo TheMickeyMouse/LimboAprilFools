@@ -16,8 +16,6 @@
 #define LEFT_CELLS  { 0, 1, 4, 5 }
 #define RIGHT_CELLS { 2, 3, 6, 7 }
 
-#define RES "../res/"
-
 float Sigmoid(float x) {
     return 1.0f / (1.0f + std::exp(-x));
 }
@@ -50,99 +48,10 @@ Palette Palette::Lerp(const Palette& p, float t) const {
     return { operator[](0).Lerp(p[0], t), operator[](1).Lerp(p[1], t), operator[](2).Lerp(p[2], t) };
 }
 
-void ScreenShake::Trigger(float amp) {
-    amplitude = amp;
-}
-void ScreenShake::Update(float dt) {
-    amplitude = std::max(amplitude - 240.0f * dt, 0.0f);
-    if (amplitude != 0.0f) {
-        auto& rand = GraphicsDevice::GetDeviceInstance().GetRand();
-        offset = fv2::RandomInUnit(rand) * amplitude;
-    }
-}
-
 void LimboApp::Permutation::Finish(LimboApp& app) {
     app.ShuffleKeys(resultingPermutation);
     app.ResetKeyPos();
 }
-
-LimboApp::Intensify::Intensify(GraphicsDevice& gdevice)
-    : Effect(9.65f),
-      postEffect({ (int)WIDTH, (int)HEIGHT }, Shader::FromFile(RES"post.glsl")),
-      background(Texture2D::New(System::CaptureScreen(), {
-          .format = TextureFormat::BGRA, .pixelated = true, .border = TextureBorder::CLAMP_TO_BORDER })),
-      temp(Texture2D::New(nullptr, { (int)WIDTH, (int)HEIGHT })) {}
-
-void LimboApp::Intensify::Anim(LimboApp& app, float dt) {
-    if (state == MANUAL || state == CAPTURE || state == DISABLED) {
-        // Debug::QInfo$("time = {}", time);
-        return;
-    }
-    if (state == NO_ANIM) {
-        app.globalScale = std::lerp(app.globalScale, 1.0f, 0.05f);
-        return;
-    }
-
-    Effect::Anim(app, dt);
-    if (state == USE_EXPOSURE) return;
-
-    const float t = std::min(time, 1.0f);
-
-    innerRadius    = std::lerp(1.1f, 0.0f, t);
-    outerRadius    = std::lerp(1.4f, 1.0f, t);
-    vignetteTint.a = std::lerp(0.0f, 0.95f, t);
-    aberrationOff  = { (3 + 10.0f * t) / WIDTH, (-2 - 6.0f * t) / HEIGHT };
-
-    app.globalScale = std::lerp(1.0f, 1.2f, t);
-    app.screenShake.Trigger(std::exp(16 * t - 15) * 75.0f);
-}
-
-void LimboApp::Intensify::Reset(LimboApp& app) {
-    state = NO_ANIM;
-    time = 0;
-    aberrationOff = { 3 / WIDTH, -2 / HEIGHT };
-}
-
-void LimboApp::Intensify::EnterExposure(LimboApp& app) {
-    state = CAPTURE;
-}
-
-void LimboApp::Intensify::Use() {
-    if (state == DISABLED) return;
-    postEffect.SetToRenderTarget();
-}
-
-void LimboApp::Intensify::Draw() {
-    if (state == DISABLED) return;
-    if (state == USE_EXPOSURE) {
-        postEffect.shader.Bind();
-        postEffect.shader.SetUniformFloat("brightness", std::lerp(1.0f, 10.0f, 3.0f * Clamp(time)));
-        postEffect.shader.SetUniformFloat("contrast",   std::lerp(0.0f, 1.0f,  3.0f * Clamp(time)));
-        postEffect.shader.SetUniformTex  ("background", background, 0);
-        postEffect.ApplyEffect();
-        return;
-    }
-    postEffect.shader.Bind();
-    postEffect.shader.SetUniformFloat("innerRadius",   innerRadius);
-    postEffect.shader.SetUniformFloat("outerRadius",   outerRadius);
-    postEffect.shader.SetUniformColor("vignetteTint",  vignetteTint);
-    postEffect.shader.SetUniformFv2  ("aberrationOff", aberrationOff);
-    postEffect.shader.SetUniformInt  ("vignetteOver",  vignetteForeground);
-    postEffect.shader.SetUniformTex  ("background",    background, 0);
-    postEffect.ApplyEffect();
-    if (state == CAPTURE) {
-        postEffect.frameBuf.Bind();
-        postEffect.frameBuf.Attach(background);
-        postEffect.frameBuf.BlitFromScreen({ 0, { (int)WIDTH, (int)HEIGHT } }, { 0, { (int)WIDTH, (int)HEIGHT } });
-        postEffect.frameBuf.Bind();
-        postEffect.frameBuf.Attach(postEffect.screenTex);
-        postEffect.shader = Shader::FromFile(RES"exposure.glsl");
-        time = -0.2f;
-        state = USE_EXPOSURE;
-    }
-}
-
-const fv2 LimboApp::ORIGIN = { WIDTH / 2, HEIGHT / 2 };
 
 const fv2 LimboApp::TARGET_POSITIONS[8] = {
     { WIDTH * 0.2f, HEIGHT * 0.5f + WIDTH * 0.1f },
@@ -247,7 +156,7 @@ LimboApp::LimboApp() : gdevice(GraphicsDevice::Initialize({ (int)WIDTH, (int)HEI
             Boxs::New(ShufflePerm   { P_SHIFT_CW,    0.25f * INV_SPEED }),
             Boxs::New(ShufflePerm   { P_SHIFT_CCW,   0.25f * INV_SPEED }),
             Boxs::New(ChooseKeyAnim {                1.00f * INV_SPEED }),
-            Boxs::New(EndAnim       {                8.00f * INV_SPEED }),
+            Boxs::New(Effect        {} ),
             Boxs::New(Finish        { 0 }),
         })
     };
@@ -259,9 +168,9 @@ LimboApp::LimboApp() : gdevice(GraphicsDevice::Initialize({ (int)WIDTH, (int)HEI
     Debug::QInfo$("Total Anim Time: {}", timeline.totalDuration);
     // int SKIP_FRAME_COUNT = (int)((18.54 - animTime) * SAMPLE_RATE);
     // ma_sound_seek_to_pcm_frame(&music, SKIP_FRAME_COUNT);
-    intensify = { gdevice };
+    postEffect.Init();
 
-#if 1
+#if 0
     ma_sound_init_from_file(&audioEngine, RES"LimboMus.mp3",  0, nullptr, nullptr, &music);
     ma_sound_set_pitch(&music, 1.0f / INV_SPEED);
     ma_sound_set_volume(&music, 0.2f);
@@ -278,7 +187,7 @@ LimboApp::~LimboApp() {
 bool LimboApp::Run() {
     if (finished) return false;
 
-    intensify.Use();
+    postEffect.Use();
 
     gdevice.Begin();
     canvas.BeginFrame();
@@ -289,6 +198,10 @@ bool LimboApp::Run() {
     const auto& io = gdevice.GetIO();
     const float dt = io.Time.DeltaTime();
 
+    if (io.Keyboard.KeyPressed(IO::Key::C)) {
+        canvas.DrawRect(fRect2D::FromCenter(correctKey->position, fv2 { 200, 150 } / correctKey->z));
+    }
+
     // SetSpinningKeys();
     timeline.Anim(*this, dt);
 
@@ -297,22 +210,20 @@ bool LimboApp::Run() {
         return false;
     }
 
-    if (io.Keyboard.KeyOnPress(IO::Key::H)) {
-        showHitboxes = !showHitboxes;
+    if (io.Keyboard.KeyOnPress(IO::Key::S)) {
+        timeline.Skip(*this);
     }
-    if (showHitboxes)
-        canvas.ShowHitboxes();
+
 
     canvas.Update(dt);
-    screenShake.Update(dt);
-    intensify.Anim(*this, dt);
+    postEffect.Anim(*this, dt);
 
     canvas.Stroke(1);
     canvas.DrawText(Text::Format("FPS = {}", (int)io.Time.Framerate()), 30.0f, { 0, HEIGHT },
         { .alignment = TextAlign::LEFT | TextAlign::VTOP });
 
     canvas.EndFrame();
-    intensify.Draw();
+    postEffect.Draw();
 
     gdevice.End();
     return true;
@@ -327,7 +238,7 @@ void LimboApp::DrawKey(int index) {
     const fv2 screenPos = Project(key.position, key.z / globalScale);
     const float size = globalScale * key.scale * KEY_SIZE * Z_CENTER / key.z;
     const auto& palette = key.colors;
-    canvas.transform = Transform2D(screenPos + screenShake.offset, 1, Radians(globalRotation));
+    canvas.transform = Transform2D(screenPos + postEffect.screenShake.offset, 1, Radians(globalRotation));
     canvas.DrawSTextureW(texAtlas["main"],    0, size, true, palette[0]);
     canvas.DrawSTextureW(texAtlas["high"],    0, size, true, palette[1]);
     canvas.DrawSTextureW(texAtlas["shadow"],  0, size, true, palette[2]);
@@ -513,14 +424,14 @@ void LimboApp::ReadyAnim::Anim(LimboApp& app, float dt) {
     static Str TEXTURES[] = { "ready", "3", "2", "1", "go" };
     const int newIdx = (int)(Span { ACC_TIMES }.FindIf([&] (float x) { return x > time; }).UnwrapOr(5)) - 1;
     if (newIdx != texIndex) {
-        app.screenShake.Trigger(30.0f);
+        app.postEffect.screenShake.Trigger(30.0f);
     }
     texIndex = newIdx;
 
     const float t = time - ACC_TIMES[texIndex], dur = ACC_TIMES[texIndex + 1] - ACC_TIMES[texIndex];
     const Str tex = TEXTURES[texIndex];
 
-    const fv2& sOff = app.screenShake.offset;
+    const fv2& sOff = app.postEffect.screenShake.offset;
     switch (texIndex) {
         case 0: {
             const float recoilT = std::max((t - (dur - 0.1f)) * 18, -0.05f * 18);
@@ -548,16 +459,16 @@ void LimboApp::ReadyAnim::Anim(LimboApp& app, float dt) {
 
 void LimboApp::ReadyAnim::Finish(LimboApp& app) {
     Effect::Finish(app);
-    app.intensify.state = Intensify::USE_ANIM;
+    app.postEffect.state = PostEffect::USE_ANIM;
 }
 
 LimboApp::KeyGizmo::KeyGizmo(LimboApp& app, int i) : Interactable({}), key(app.KeyAt(i)), app(app), keyIndex(i), realZ(key->z) {}
 
 bool LimboApp::KeyGizmo::CaptureEvent(MouseEventType::E e, IO::IO& io) {
     if (e & MouseEventType::CLICK) {
-        app->timeline.Skip(*app);
-        auto& ending = *app->timeline.CurrentEffect().As<EndAnim>();
-        ending.ChooseKey(app, key);
+        const bool correct = key.RefEquals(app->correctKey);
+        Box ending = correct ? (Box<Effect>)Boxs::New(CorrectEndAnim { key }) : Boxs::New(IncorrectEndAnim { key });
+        app->timeline.SkipWith(*app, std::move(ending));
     }
     return Interactable::CaptureEvent(e, io);
 }
@@ -578,8 +489,8 @@ LimboApp::ChooseKeyAnim::ChooseKeyAnim(float dura) : Effect(dura) {
 
 void LimboApp::ChooseKeyAnim::Init(LimboApp& app) {
     Effect::Init(app);
-    app.intensify.state = Intensify::NO_ANIM;
-    app.intensify.aberrationOff = { 6 / WIDTH, -4 / HEIGHT };
+    app.postEffect.state = PostEffect::NO_ANIM;
+    app.postEffect.aberrationOff = { 6 / WIDTH, -4 / HEIGHT };
     for (int i = 0; i < 8; ++i) {
         keyGizmos[i] = { app, i };
         app.canvas.AddInteractable(keyGizmos[i]);
@@ -646,15 +557,18 @@ float LimboApp::ChooseKeyAnim::ExtraTime() const {
 
 void LimboApp::EndAnim::Init(LimboApp& app) {
     Effect::Init(app);
-    app.intensify.state = Intensify::MANUAL;
-    app.intensify.aberrationOff = { 6 / WIDTH, -4 / HEIGHT };
-    app.intensify.vignetteForeground = true;
-    app.intensify.vignetteTint = { 0, 0 };
-    app.canvas.NoStroke();
-    missileSheet = Texture2D::LoadPNG(RES"exp_compressed.png");
+    app.postEffect.state = PostEffect::MANUAL;
+    app.postEffect.aberrationOff = { 6 / WIDTH, -4 / HEIGHT };
+    app.postEffect.vignetteForeground = true;
+    app.postEffect.vignetteTint = { 0, 0 };
 }
 
-void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
+void LimboApp::IncorrectEndAnim::Init(LimboApp& app) {
+    EndAnim::Init(app);
+    missileAnimSheet = Texture2D::LoadPNG(RES"exp_compressed.png");
+}
+
+void LimboApp::IncorrectEndAnim::Anim(LimboApp& app, float dt) {
     // Permutation::Anim(app, dt);
     time += dt;
     static constexpr float STAGE_TIMES[] = { 0.0f, 2.0f, 3.0f, 9.4f, 9.4f, 14.0f };
@@ -663,25 +577,20 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
         if (newState - state == 2) { newState = BEFORE_CAPTURE; }
         switch (newState) {
             case SHOW_CORRECT:
-                ma_engine_play_sound(&app.audioEngine, correct ? RES"correct.mp3" : RES"incorrect.mp3", nullptr);
+                ma_engine_play_sound(&app.audioEngine, RES"incorrect.mp3", nullptr);
                 break;
             case BOOM:
-                if (!correct)
-                    ma_engine_play_sound(&app.audioEngine, RES"vine-boom.mp3", nullptr);
+                ma_engine_play_sound(&app.audioEngine, RES"vine-boom.mp3", nullptr);
                 break;
             case BEFORE_CAPTURE:
-                if (!correct) {
-                    ma_engine_play_sound(&app.audioEngine, RES"mypc.mp3", nullptr);
-                    app.intensify.EnterExposure(app);
-                }
+                ma_engine_play_sound(&app.audioEngine, RES"mypc.mp3", nullptr);
+                app.postEffect.EnterExposure();
                 break;
             case ERROR:
-                if (!correct) {
-                    FrameBuffer::Screen().Bind(); // draw to screen instead; no post-processing
-                    app.intensify.state = Intensify::DISABLED;
-                    ma_engine_play_sound(&app.audioEngine, RES"error_sound.mp3", nullptr);
-                    app.canvas.AddInteractable(middleErrorMessage);
-                }
+                FrameBuffer::Screen().Bind(); // draw to screen instead; no post-processing
+                app.postEffect.state = PostEffect::DISABLED;
+                ma_engine_play_sound(&app.audioEngine, RES"error_sound.mp3", nullptr);
+                app.canvas.AddInteractable(middleErrorMessage);
                 break;
             default:;
         }
@@ -695,17 +604,15 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
     }
 
     if (state >= SHOW_CORRECT && state < MISSILE) {
-        const float localTime = time - STAGE_TIMES[SHOW_CORRECT];
+        const float localTime = (time - STAGE_TIMES[SHOW_CORRECT]) / 0.4f, glow = 0.12f + 0.38f * std::exp(-localTime);
         app.correctKey->colors.LerpTowards(app.GetColorShades(3) * 1.3, 0.05f);
-        app.correctKey->glowIntensity = 0.12f + 0.38f * std::exp(-localTime);
+        app.correctKey->glowIntensity = glow;
+        chosenKey->colors.LerpTowards(app.GetColorShades(0) * 1.1f, 0.05f);
+        chosenKey->glowIntensity = glow;
 
-        if (!correct) {
-            chosenKey->colors.LerpTowards(app.GetColorShades(0) * 1.1f, 0.05f);
-            chosenKey->glowIntensity = 0.12f + 0.38f * std::exp(-localTime);
-        }
-        app.intensify.innerRadius = std::lerp(1.3f,   0.9f, std::min(1.0f, localTime / 0.4f));
-        app.intensify.outerRadius = std::lerp(1.414f, 1.3f, std::min(1.0f, localTime / 0.4f));
-        app.intensify.vignetteTint.LerpTowards(app.GetColor(correct ? 3 : 0, 2) * 0.7f, 0.05f);
+        app.postEffect.innerRadius = std::lerp(1.3f,   0.9f, std::min(1.0f, localTime));
+        app.postEffect.outerRadius = std::lerp(1.414f, 1.3f, std::min(1.0f, localTime));
+        app.postEffect.vignetteTint.LerpTowards(app.GetColor(0, 2) * 0.7f, 0.05f);
     }
     if (state < SHOW_CORRECT) {
         for (auto& key : app.keys) {
@@ -720,28 +627,26 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
 
     if (state >= SHOW_CORRECT && state < MISSILE) {
         float e = std::exp(3.0f * (2.7f - time));
-        app.DrawTexH(correct ? "correct" : "wrong",
-            { WIDTH / 2, HEIGHT * (0.83f + 0.3f * e) }, HEIGHT * 0.2f);
+        app.DrawTexH("wrong", { WIDTH / 2, HEIGHT * (0.83f + 0.3f * e) }, HEIGHT * 0.2f);
 
-        if (!correct && state >= BOOM) {
+        if (state >= BOOM) {
             float s = std::exp(1.1f * (time - 3.0f));
             app.DrawTexH("wrong", { WIDTH / 2, HEIGHT * (0.83f + 0.3f * e) }, HEIGHT * 0.2f * s, 2 - s);
         }
 
-        if (!correct) {
-            const float size = HEIGHT * EaseOutBack(time - 5.0f) * 0.55f, alpha = Clamp(1.05f - 300 * e);
-            app.DrawTexH("comp_bg", ORIGIN, size, alpha);
-            app.DrawTexH("bsod",    ORIGIN, size, Clamp(1.05f - 7200000.0f * e));
-            app.DrawTexH("comp",    ORIGIN, size, alpha);
+        const float size = HEIGHT * EaseOutBack(time - 5.0f) * 0.55f, alpha = Clamp(1.05f - 300 * e);
+        app.DrawTexH("comp_bg", ORIGIN, size, alpha);
+        app.DrawTexH("bsod",    ORIGIN, size, Clamp(1.05f - 7200000.0f * e));
+        app.DrawTexH("comp",    ORIGIN, size, alpha);
 
-            app.DrawTexHR("ur_comp", { WIDTH * 0.8f, HEIGHT / 2 }, CubicEase(time - 5.3f) * HEIGHT * 0.55f,
-                alpha, (EaseOutBack(time - 5.7f) - 1) * QUART_PI);
-        }
+        app.DrawTexHR("ur_comp", { WIDTH * 0.8f, HEIGHT / 2 }, CubicEase(time - 5.3f) * HEIGHT * 0.55f,
+            alpha, (EaseOutBack(time - 5.7f) - 1) * QUART_PI);
     }
 
-    if (!correct && time > 10.0 && state < ERROR) {
-        const float animX = Clamp(std::floor(std::log((time - 7.0f) / 3.0f) * 40.0f) / 25.0f);
-        app.canvas.DrawSTextureW({ missileSheet, { { animX - 0.04f, 0.0f }, { animX, 1.0f } } }, ORIGIN, WIDTH);
+    if (time > 10.0 && state < ERROR) {
+        const int frame = std::floor(std::log((time - 7.0f) / 3.0f) * 40.0f);
+        const float animX = Clamp(frame / 25.0f);
+        app.canvas.DrawSTextureW({ missileAnimSheet, { { animX - 0.04f, 0.0f }, { animX, 1.0f } } }, ORIGIN, WIDTH);
     }
 
     if (state == ERROR) {
@@ -753,20 +658,135 @@ void LimboApp::EndAnim::Anim(LimboApp& app, float dt) {
 
         if (app.gdevice.GetIO().Mouse.AnyOnPress()) {
             app.timeline.Skip(app);
-            app.timeline.CurrentEffect().As<class Finish>()->SetEnding(!correct);
+            app.timeline.CurrentEffect().As<class Finish>()->SetEnding(false);
             app.finished = true;
         }
     }
 }
 
-void LimboApp::EndAnim::Finish(LimboApp& app) {
+void LimboApp::IncorrectEndAnim::Finish(LimboApp& app) {
     Effect::Finish(app);
     app.canvas.RemoveInteractable(middleErrorMessage);
 }
 
-void LimboApp::EndAnim::ChooseKey(LimboApp& app, LimboKey& key) {
-    chosenKey = key;
-    correct = app.correctKey.RefEquals(chosenKey);
+void LimboApp::CorrectEndAnim::Init(LimboApp& app) {
+    EndAnim::Init(app);
+    partyAnimSheet = Texture2D::LoadPNG(RES"party-sheet.png");
+}
+
+void LimboApp::CorrectEndAnim::Anim(LimboApp& app, float dt) {
+    time += dt;
+    static constexpr float STAGE_TIMES[] = { 0.0f, 2.0f, 4.0f };
+    State newState = (State)Span(STAGE_TIMES).RevFindIf([&] (float x) { return time > x; }).UnwrapOr(0);
+    if (state != newState) {
+        switch (newState) {
+            case SHOW_CORRECT:
+                ma_engine_play_sound(&app.audioEngine, RES"correct.mp3", nullptr);
+                break;
+            case PARTY:
+                ma_engine_play_sound(&app.audioEngine, RES"partyblower.mp3", nullptr);
+                break;
+            default:;
+        }
+        state = newState;
+    }
+
+    app.canvas.Fill({ 0, 1 - std::exp(-5.0f * time) });
+    app.canvas.NoStroke();
+    app.canvas.DrawRect({ 0, { WIDTH, HEIGHT } });
+
+    if (state >= SHOW_CORRECT) {
+        const float localTime = (time - STAGE_TIMES[SHOW_CORRECT]) / 0.4f, glow = 0.12f + 0.38f * std::exp(-localTime);
+        app.correctKey->colors.LerpTowards(app.GetColorShades(3) * 1.3, 0.05f);
+        app.correctKey->glowIntensity = glow;
+
+        app.postEffect.innerRadius = std::lerp(1.3f,   0.9f, std::min(1.0f, localTime));
+        app.postEffect.outerRadius = std::lerp(1.414f, 1.3f, std::min(1.0f, localTime));
+        app.postEffect.vignetteTint.LerpTowards(app.GetColor(3, 2) * 0.7f, 0.05f);
+
+        float e = std::exp(3.0f * (2.7f - time));
+        app.DrawTexH("correct", { WIDTH / 2, HEIGHT * (0.83f + 0.3f * e) }, HEIGHT * 0.2f);
+    } else {
+        for (auto& key : app.keys) {
+            key.colors.LerpTowards(chosenKey.RefEquals(key) ?
+                Palette { 0.9, 1.0, 0.8 } : Palette { 0, 0, 0 }, 0.2f);
+            key.scale = std::lerp(key.scale, 1.0f, 0.05f);
+        }
+    }
+
+    app.DrawKeys();
+
+    if (state == PARTY) {
+        const float localTime     = time - STAGE_TIMES[PARTY];
+        const int frame           = std::min(std::floor(localTime * 20.0f), 72.0f), x = frame % 8, y = 8 - (frame / 8);
+        const fRect2D frameSprite = { { x / 8.0f, y / 9.0f }, { (x + 1) / 8.0f, (y + 1) / 9.0f } };
+        const float size          = 512.0f * (Sigmoid((localTime - 0.3f) * 16.0f) - Sigmoid((localTime - 3.3f) * 16.0f));
+        const Rotor2D rotation    = 90.0_deg * (1 - Sigmoid((localTime - 0.6f) * 8.0f) - Sigmoid((localTime - 3.0f) * 8.0f));
+        const fv2 position        = rotation.InvRotate({ WIDTH * 0.5f, HEIGHT * 0.4f }) + fv2 { 0.148f, 0.273f } * size;
+
+        app.canvas.transform = { 0, 1, rotation };
+        app.canvas.DrawSTextureW({ partyAnimSheet, frameSprite }, position, size);
+        app.canvas.transform.Reset();
+
+        if (particles.Length() < 64)
+            AddParticle(app);
+
+        UpdateParticles(dt);
+        DrawParticles(app);
+    }
+}
+
+void LimboApp::CorrectEndAnim::Finish(LimboApp& app) {
+    EndAnim::Finish(app);
+}
+
+void LimboApp::CorrectEndAnim::AddParticle(LimboApp& app) {
+    auto& rand = app.gdevice.GetRand();
+    Particle p;
+    p.position = ORIGIN;
+    p.z = rand.Get(0.6f, 1.6f);
+    p.velocity    = fv2::RandomOnUnit(rand) * (WIDTH * rand.Get(0.2f, 0.4f));
+    p.angVelocity = fv3::RandomInUnit(rand);
+    p.angle       = Rotor3D::Random(rand).AsQuat();
+    p.shape       = rand.Get(0, 16);
+    particles.Push(p);
+}
+
+void LimboApp::CorrectEndAnim::UpdateParticles(float dt) {
+    static constexpr float GRAVITY = 240.0f, DRAG = 0.001f;
+    for (auto& p : particles) {
+        p.position += p.velocity * dt;
+        p.velocity += (fv2 { 0, -GRAVITY } - DRAG * p.velocity.Len() * p.velocity) * dt;
+        p.angle    += (0.5f * dt) * Quaternion(0, p.angVelocity) * p.angle;
+        // cull test
+        if (p.position.y < WIDTH * (1.0f / p.z - 1.1f)) p.shape |= 32;
+    }
+}
+
+void LimboApp::CorrectEndAnim::DrawParticles(LimboApp& app) {
+    static const fColor COLORS[8] = {
+        0x2cdb5b_rgbf, 0xf03629_rgbf, 0xedc218_rgbf, 0x1878ed_rgbf,
+        0x9b18ed_rgbf, 0xed47e2_rgbf, 0x71e82c_rgbf, 0x1212e6_rgbf
+    };
+    app.canvas.Stroke(1);
+    int numRendered = 0;
+    for (auto& p : particles) {
+        if (p.shape & 32) continue;
+        // const fv2 center = Project(p.position, p.z);
+        // app.canvas.DrawPoint(center);
+        app.canvas.NoStroke();
+        app.canvas.Fill(COLORS[p.shape & 7]);
+        const Rotor3D rotor = Rotor3D::FromQuat(p.angle);
+        const float size = p.shape & 16 ? 36.0f : 18.0f;
+        const fv2 center = Project(p.position, p.z),
+                  c1 = rotor.Rotate(fv3 { size,  size * 0.5f, 0 }).As2D(),
+                  c2 = rotor.Rotate(fv3 { size, -size * 0.5f, 0 }).As2D();
+        app.canvas.DrawQuad(center + c1, center + c2, center - c1, center - c2);
+        ++numRendered;
+    }
+    if (numRendered == 0) {
+        particles.Clear();
+    }
 }
 
 void LimboApp::Finish::Init(LimboApp& app) {

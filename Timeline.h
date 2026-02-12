@@ -47,4 +47,5 @@ public:
 
     void Anim(LimboApp& app, float dt);
     void Skip(LimboApp& app);
+    void SkipWith(LimboApp& app, Box<Effect>&& replacementEffect);
 };

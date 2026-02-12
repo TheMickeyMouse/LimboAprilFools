@@ -39,9 +39,20 @@ void Timeline::Anim(LimboApp& app, float dt) {
 }
 
 void Timeline::Skip(LimboApp& app) {
-    const float extraTime = currentEffect ? currentEffect->ExtraTime() : 0;
+    const float extraTime = currentEffect ? std::max(0.0f, currentEffect->ExtraTime()) : 0;
     if (currentEffect) currentEffect->Finish(app);
 
+    currentEffect = effects[frame].AsRef();
+    currentEffect->AddTime(extraTime);
+    currentEffect->Init(app);
+    ++frame;
+}
+
+void Timeline::SkipWith(LimboApp& app, Box<Effect>&& replacementEffect) {
+    const float extraTime = currentEffect ? std::max(0.0f, currentEffect->ExtraTime()) : 0;
+    if (currentEffect) currentEffect->Finish(app);
+
+    effects[frame] = std::move(replacementEffect);
     currentEffect = effects[frame].AsRef();
     currentEffect->AddTime(extraTime);
     currentEffect->Init(app);

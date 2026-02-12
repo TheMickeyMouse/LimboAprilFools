@@ -137,6 +137,7 @@ namespace Quasi::Graphics {
     void Canvas::DrawQuad(const Math::fv2& p1, const Math::fv2& p2, const Math::fv2& p3, const Math::fv2& p4) {
         if (NeedDrawFill()) {
             Batch batch = NewBatch();
+            batch.SetFill();
             batch.Point(p1);
             batch.Point(p2);
             batch.Point(p3);

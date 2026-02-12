@@ -21,12 +21,9 @@ struct LimboKey {
     Palette colors;
 };
 
-struct ScreenShake {
-    fv2 offset;
-    float amplitude = 0.0f;
-    void Trigger(float amp);
-    void Update(float dt);
-};
+#define RES "../res/"
+static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
+inline static const fv2 ORIGIN = { WIDTH / 2, HEIGHT / 2 };
 
 class LimboApp {
     class Permutation : public Effect {
@@ -38,36 +35,12 @@ class LimboApp {
         void Finish(LimboApp& app) override;
     };
 
-    class Intensify : public Effect {
-    public:
-        PostEffect postEffect;
-        float innerRadius = 0, outerRadius = 0;
-        fv2 aberrationOff = { 3 / WIDTH, -2 / HEIGHT };
-        fColor vignetteTint = { 0, 0 };
-        enum State { USE_ANIM, NO_ANIM, MANUAL, CAPTURE, USE_EXPOSURE, DISABLED } state = NO_ANIM;
-        bool vignetteForeground = false;
-        Texture2D background, temp;
-
-        Intensify() = default;
-        Intensify(GraphicsDevice& gdevice);
-
-        void Anim(LimboApp& app, float dt) override;
-        void Reset(LimboApp& app);
-        void EnterExposure(LimboApp& app);
-        void Use();
-        void Draw();
-    };
-
-    static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
-    static const fv2 ORIGIN;
-
     GraphicsDevice gdevice;
     Canvas canvas { gdevice };
     ma_engine audioEngine;
     ma_sound music;
 
-    ScreenShake screenShake;
-    Intensify intensify;
+    PostEffect postEffect;
 
     // Graphics::Bloom bloom;
 
@@ -75,7 +48,6 @@ class LimboApp {
     OptRef<LimboKey> correctKey = nullptr;
     Array<int, 8> keyPermutation = { 0, 1, 2, 3, 4, 5, 6, 7 };
     f32 globalRotation = 0.0f, globalScale = 1.0f;
-    bool showHitboxes = false;
 
     Timeline timeline;
     bool finished = false;
@@ -83,6 +55,8 @@ class LimboApp {
 
     TextureAtlas texAtlas;
     Palette colorPalette[8];
+
+    friend PostEffect;
 public:
     LimboApp();
     ~LimboApp();
@@ -186,20 +160,44 @@ public:
     };
 
     class EndAnim : public Effect {
+    protected:
         OptRef<LimboKey> chosenKey = nullptr;
-        bool correct = false;
+    public:
+        explicit EndAnim(LimboKey& key) : Effect(1.0f), chosenKey(key) {}
+        void Init(LimboApp& app) override;
+        bool Done() const override { return false; }
+    };
+
+    class IncorrectEndAnim : public EndAnim {
         enum State { BEGIN, SHOW_CORRECT, BOOM, BEFORE_CAPTURE, MISSILE, ERROR, END } state = BEGIN;
-        Texture2D missileSheet;
+        Texture2D missileAnimSheet;
         Interactable middleErrorMessage = { { { 704.5, 396.5 }, { 1215.5, 683.5 } } };
     public:
-        explicit EndAnim(float dura) : Effect(dura) {}
+        using EndAnim::EndAnim;
+        void Init(LimboApp& app) override;
+        void Anim(LimboApp& app, float dt) override;
+        void Finish(LimboApp& app) override;
+    };
 
+    class CorrectEndAnim : public EndAnim {
+        enum State { BEGIN, SHOW_CORRECT, PARTY } state = BEGIN;
+        Texture2D partyAnimSheet;
+
+        struct Particle {
+            fv2 position; fv2 velocity; float z;
+            Quaternion angle; fv3 angVelocity;
+            int shape;
+        };
+        Vec<Particle> particles;
+    public:
+        using EndAnim::EndAnim;
         void Init(LimboApp& app) override;
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
 
-        void ChooseKey(LimboApp& app, LimboKey& key);
-        bool Done() const override { return false; }
+        void AddParticle(LimboApp& app);
+        void UpdateParticles(float dt);
+        void DrawParticles(LimboApp& app);
     };
 
     class Finish : public Effect {
