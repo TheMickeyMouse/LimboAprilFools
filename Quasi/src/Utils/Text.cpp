@@ -83,6 +83,14 @@ namespace Quasi::Text {
         return ss;
     }
 
+    String Quote(Str txt, char quote) {
+        String quoted = String::WithCap(txt.Length() + 2);
+        quoted.Append(quote);
+        quoted.AppendStr(txt);
+        quoted.Append(quote);
+        return quoted;
+    }
+
     ColoredStr Dye(ConsoleColor col, Str txt) {
         return { col, txt };
     }

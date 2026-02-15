@@ -5,6 +5,165 @@
 #undef ERROR
 
 namespace System {
+    template <class T>
+    class _NoAddRefReleaseOnCComPtr : public T
+    {
+    private:
+        STDMETHOD_(ULONG, AddRef)()=0;
+        STDMETHOD_(ULONG, Release)()=0;
+    };
+
+    template<class T>
+    class CComPtr
+    {
+    public:
+        T *p;
+    public:
+        CComPtr()
+        {
+            p = NULL;
+        }
+
+        CComPtr(T *lp)
+        {
+            p = lp;
+            if (p != NULL)
+                p->AddRef();
+        }
+
+        CComPtr(const CComPtr<T> &lp)
+        {
+            p = lp.p;
+            if (p != NULL)
+                p->AddRef();
+        }
+
+        ~CComPtr()
+        {
+            if (p != NULL)
+                p->Release();
+        }
+
+        HRESULT CoCreateInstance(REFCLSID rclsid, REFIID riid, LPUNKNOWN pOuter = NULL, DWORD ClsCtx = CLSCTX_ALL)
+        {
+            return ::CoCreateInstance(rclsid, pOuter, ClsCtx, riid, (void**)&p);
+        }
+
+        HRESULT CoCreateInstance(LPCOLESTR ProgID, REFIID riid, LPUNKNOWN pOuter = NULL, DWORD ClsCtx = CLSCTX_ALL)
+        {
+            CLSID clsid;
+            HRESULT hr = CLSIDFromProgID(ProgID, &clsid);
+            return FAILED(hr) ? hr : CoCreateInstance(clsid, riid, pOuter, ClsCtx);
+        }
+
+        void Release()
+        {
+            if (p != NULL)
+            {
+                p->Release();
+                p = NULL;
+            }
+        }
+
+        void Attach(T *lp)
+        {
+            if (p != NULL)
+                p->Release();
+            p = lp;
+        }
+
+        T *Detach()
+        {
+            T *saveP;
+
+            saveP = p;
+            p = NULL;
+            return saveP;
+        }
+
+        T **operator & ()
+        {
+            return &p;
+        }
+
+        operator T * ()
+        {
+            return p;
+        }
+
+        _NoAddRefReleaseOnCComPtr<T>* operator->() const throw()
+        {
+            return (_NoAddRefReleaseOnCComPtr<T>*)p;
+        }
+    };
+
+
+    template <class T, const IID* piid = &__uuidof(T)>
+    class CComQIPtr : public CComPtr<T>
+    {
+    public:
+        CComQIPtr() {}
+        CComQIPtr(T* lp) : CComPtr<T>(lp) {}
+        CComQIPtr(const CComQIPtr<T,piid>& lp) : CComPtr<T>(lp.p) {}
+        CComQIPtr(IUnknown* lp) {
+            if (lp != NULL)
+                lp->QueryInterface(*piid, (void **)&(this->p));
+        }
+    };
+
+    class CComVariant : public tagVARIANT {
+    // Constructors
+    public:
+    	CComVariant() {
+    		::VariantInit(this);
+    	}
+    	~CComVariant() {
+    	    ::VariantClear(this);
+    	}
+    	CComVariant(int nSrc, VARTYPE vtSrc = VT_I4) {
+    		vt = vtSrc;
+    		intVal = nSrc;
+    	}
+    };
+
+    void Try(HRESULT hr, Quasi::Str msg) {
+        if (FAILED(hr))
+           Quasi::Debug::QError$(msg);
+    }
+
+    // Query an interface from the desktop shell view.
+    void FindDesktopFolderView(REFIID riid, void **ppv) {
+        CComPtr<IShellWindows> spShellWindows;
+        Try(spShellWindows.CoCreateInstance(CLSID_ShellWindows, IID_IShellWindows),
+            "Failed to create IShellWindows instance" );
+
+        CComVariant vtLoc( CSIDL_DESKTOP );
+        CComVariant vtEmpty;
+        long lhwnd;
+        CComPtr<IDispatch> spdisp;
+        Try(
+            spShellWindows->FindWindowSW(
+                &vtLoc, &vtEmpty, SWC_DESKTOP, &lhwnd, SWFO_NEEDDISPATCH, &spdisp ),
+            "Failed to find desktop window" );
+
+        CComQIPtr<IServiceProvider> spProv( spdisp );
+        if(!spProv)
+            Try(E_NOINTERFACE, "Failed to get IServiceProvider interface for desktop");
+
+        CComPtr<IShellBrowser> spBrowser;
+        Try(
+            spProv->QueryService( SID_STopLevelBrowser, IID_PPV_ARGS( &spBrowser ) ),
+            "Failed to get IShellBrowser for desktop" );
+
+        CComPtr<IShellView> spView;
+        Try(
+            spBrowser->QueryActiveShellView( &spView ),
+            "Failed to query IShellView for desktop" );
+
+        Try(spView->QueryInterface( riid, ppv ),
+            "Could not query desktop IShellView for interface ");
+    }
+
     void ChangeWallpaper(const wchar_t* filepath) {
         wchar_t absolutePath[MAX_PATH];
         // filepath is relative, make it absolute
@@ -38,9 +197,16 @@ namespace System {
     }
 
     void HideIcons() {
-        SHELLSTATE ss;
-        ss.fHideIcons = true;
-        SHGetSetSettings(&ss, SSF_HIDEICONS, true);
+        // SHELLSTATE ss;
+        // ss.fHideIcons = true;
+        // SHGetSetSettings(&ss, SSF_HIDEICONS, true);
+
+        CComPtr<IFolderView2> spView;
+        FindDesktopFolderView(IID_PPV_ARGS(&spView));
+
+        Try(
+            spView->SetCurrentFolderFlags(FWF_NOICONS, FWF_NOICONS),
+            "SetCurrentFolderFlags failed" );
     }
 
     void HideAllWindows() {

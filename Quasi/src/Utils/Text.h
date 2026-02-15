@@ -17,7 +17,7 @@ namespace Quasi::Text {
     Tuple<Str, Str> SplitDirectory(Str fname);
 
     String AutoIndent(Str text);
-    String Quote(Str txt);
+    String Quote(Str txt, char quote = '\"');
 
     // adapted from https://stackoverflow.com/a/59522794/19968422
     namespace _helper {

@@ -5,7 +5,7 @@
 #include "LimboApp.h"
 #include "System.h"
 
-void PostEffect::Init() {
+void PostEffect::Init(LimboApp& app) {
     background = Texture2D::New(System::CaptureScreen(), {
         .format = TextureFormat::BGRA,
         .pixelated = true,
@@ -20,7 +20,7 @@ void PostEffect::Init() {
         .format = TextureFormat::RGBA, .internalformat = TextureIFormat::RGBA_32F, .type = GLTypeID::FLOAT,
     });
 
-    shader = Shader::FromFile(RES"post.glsl");
+    shader = Shader::New(app.resources["post.glsl"].Transmute<char>().AsStr());
 
     frameBuf.Bind();
     frameBuf.Attach(depthBuffer, AttachmentType::DEPTH);
@@ -55,7 +55,6 @@ void PostEffect::Anim(LimboApp& app, float dt) {
     }
 
     time += dt / 9.65f;
-    if (state == USE_EXPOSURE) return;
 
     const float t = std::min(time, 1.0f);
 
@@ -74,20 +73,16 @@ void PostEffect::Reset() {
     aberrationOff = { 3 / WIDTH, -2 / HEIGHT };
 }
 
-void PostEffect::EnterExposure() {
+void PostEffect::CaptureBackground() {
     state = CAPTURE;
+}
+
+void PostEffect::DrawBackground(LimboApp& app) {
+    app.canvas.DrawTexture(background, 0, { WIDTH, HEIGHT }, false);
 }
 
 void PostEffect::Draw() {
     if (state == DISABLED) return;
-    if (state == USE_EXPOSURE) {
-        shader.Bind();
-        shader.SetUniformFloat("brightness", std::lerp(1.0f, 10.0f, 3.0f * Clamp(time, 0.0f, 1.0f)));
-        shader.SetUniformFloat("contrast",   std::lerp(0.0f, 1.0f,  3.0f * Clamp(time, 0.0f, 1.0f)));
-        shader.SetUniformTex  ("background", background, 0);
-        ApplyEffect();
-        return;
-    }
     shader.Bind();
     shader.SetUniformFloat("innerRadius",   innerRadius);
     shader.SetUniformFloat("outerRadius",   outerRadius);
@@ -102,9 +97,8 @@ void PostEffect::Draw() {
         frameBuf.BlitFromScreen({ 0, { (int)WIDTH, (int)HEIGHT } }, { 0, { (int)WIDTH, (int)HEIGHT } });
         frameBuf.Bind();
         frameBuf.Attach(screenTex);
-        shader = Shader::FromFile(RES"exposure.glsl");
-        time = -0.2f;
-        state = USE_EXPOSURE;
+        FrameBuffer::Screen().Bind();
+        state = DISABLED;
     }
 }
 

@@ -4,7 +4,7 @@
 #include "GUI/Canvas.h"
 #include "Quasi/src/Graphics/GraphicsDevice.h"
 #include "miniaudio/miniaudio.h"
-
+#include "Utils/IO/Archive.h"
 
 struct Palette : Array<fColor, 3> {
     Palette() = default;
@@ -21,7 +21,6 @@ struct LimboKey {
     Palette colors;
 };
 
-#define RES "../res/"
 static constexpr float WIDTH = 1920, HEIGHT = 1080, Z_CENTER = 1.0f, KEY_SIZE = WIDTH * 0.1;
 inline static const fv2 ORIGIN = { WIDTH / 2, HEIGHT / 2 };
 
@@ -38,7 +37,9 @@ class LimboApp {
     GraphicsDevice gdevice;
     Canvas canvas { gdevice };
     ma_engine audioEngine;
-    ma_sound music;
+    ma_sound currentSound;
+    ma_decoder decoder;
+    bool hasPlayedSound = false;
 
     PostEffect postEffect;
 
@@ -53,6 +54,7 @@ class LimboApp {
     bool finished = false;
     static const fv2 TARGET_POSITIONS[8];
 
+    Archive resources;
     TextureAtlas texAtlas;
     Palette colorPalette[8];
 
@@ -60,6 +62,8 @@ class LimboApp {
 public:
     LimboApp();
     ~LimboApp();
+
+    void LoadResources();
 
     bool Run();
 
@@ -72,6 +76,7 @@ public:
     void DrawTexW(Str name, const fv2& pos, float w, float alpha = 1);
     void DrawTexH(Str name, const fv2& pos, float h, float alpha = 1);
     void DrawTexHR(Str name, const fv2& pos, float h, float alpha = 1, float angle = 0);
+    void PlaySound(Str name);
 
     const fColor& GetColor(int index, int shade) const;
     const Palette& GetColorShades(int index) const;
@@ -139,7 +144,7 @@ public:
         OptRef<LimboApp> app;
         int keyIndex = 0;
         float realZ = 1.0f, zScale = 1.0f;
-        KeyGizmo() : Interactable({}) {}
+        KeyGizmo() = default;
         KeyGizmo(LimboApp& app, int i);
         ~KeyGizmo() override = default;
 
@@ -169,9 +174,9 @@ public:
     };
 
     class IncorrectEndAnim : public EndAnim {
-        enum State { BEGIN, SHOW_CORRECT, BOOM, BEFORE_CAPTURE, MISSILE, ERROR, END } state = BEGIN;
+        enum State { BEGIN, SHOW_CORRECT, BOOM, E_SOUND, BEFORE_CAPTURE, MISSILE, ERROR, END } state = BEGIN;
         Texture2D missileAnimSheet;
-        Interactable middleErrorMessage = { { { 704.5, 396.5 }, { 1215.5, 683.5 } } };
+        Clickable middleErrorMessage = {};
     public:
         using EndAnim::EndAnim;
         void Init(LimboApp& app) override;
@@ -180,13 +185,13 @@ public:
     };
 
     class CorrectEndAnim : public EndAnim {
-        enum State { BEGIN, SHOW_CORRECT, PARTY } state = BEGIN;
+        enum State { BEGIN, SHOW_CORRECT, BEFORE_CAPTURE, PARTY, PARTY_SOUND, TROPHY, END } state = BEGIN;
         Texture2D partyAnimSheet;
 
         struct Particle {
-            fv2 position; fv2 velocity; float z;
+            fv2 position; fv2 velocity; float z = 1.0f;
             Quaternion angle; fv3 angVelocity;
-            int shape;
+            int shape = 0;
         };
         Vec<Particle> particles;
     public:
@@ -195,16 +200,16 @@ public:
         void Anim(LimboApp& app, float dt) override;
         void Finish(LimboApp& app) override;
 
-        void AddParticle(LimboApp& app);
+        void AddParticle(LimboApp& app, const fv2& center, float angle);
         void UpdateParticles(float dt);
         void DrawParticles(LimboApp& app);
     };
 
     class Finish : public Effect {
-        bool incorrect = true;
+        bool correct = true;
     public:
         explicit Finish(float dura) : Effect(dura) {}
         void Init(LimboApp& app) override;
-        void SetEnding(bool incorrect);
+        void SetEnding(bool correct);
     };
 };

@@ -118,6 +118,7 @@ set(HEADER_FILES
         src/Utils/Iter/EnumerateIter.h
         src/Utils/Iter/LinesIter.h
         src/Utils/Iter/SplitIter.h
+        src/Utils/IO/Archive.h
 
         src/vendor/imgui/imconfig.h
         src/vendor/imgui/imgui.h
@@ -134,90 +135,89 @@ set(HEADER_FILES
 source_group("Header Files" FILES ${HEADER_FILES})
 
 set(SOURCE_FILES
-        src/Utils/Debug/Logger.cpp
-        src/Utils/Debug/Timer.cpp
+    src/Utils/Debug/Logger.cpp
+    src/Utils/Debug/Timer.cpp
 
-        src/Graphics/GLs/FrameBuffer.cpp
-        src/Graphics/GLs/GLDebug.cpp
-        src/Graphics/GLs/RenderBuffer.cpp
-        src/Graphics/GLs/IndexBuffer.cpp
-        src/Graphics/GLs/VertexBuffer.cpp
-        src/Graphics/GLs/VertexArray.cpp
-        src/Graphics/GLs/VertexBufferLayout.cpp
-        src/Graphics/GLs/Render.cpp
-        src/Graphics/GLs/Shader.cpp
-        src/Graphics/GLs/Texture.cpp
+    src/Graphics/GLs/FrameBuffer.cpp
+    src/Graphics/GLs/GLDebug.cpp
+    src/Graphics/GLs/RenderBuffer.cpp
+    src/Graphics/GLs/IndexBuffer.cpp
+    src/Graphics/GLs/VertexBuffer.cpp
+    src/Graphics/GLs/VertexArray.cpp
+    src/Graphics/GLs/VertexBufferLayout.cpp
+    src/Graphics/GLs/Render.cpp
+    src/Graphics/GLs/Shader.cpp
+    src/Graphics/GLs/Texture.cpp
 
-        src/Graphics/CameraController2D.cpp
-        src/Graphics/CameraController3D.cpp
-        src/Graphics/Light.cpp
-        src/Graphics/GraphicsDevice.cpp
-        src/Graphics/RenderData.cpp
-        src/Graphics/GUI/Canvas.cpp
+    src/Graphics/CameraController2D.cpp
+    src/Graphics/CameraController3D.cpp
+    src/Graphics/Light.cpp
+    src/Graphics/GraphicsDevice.cpp
+    src/Graphics/RenderData.cpp
+    src/Graphics/GUI/Canvas.cpp
 
-        src/Graphics/Effects/Bloom.cpp
+    src/Graphics/Effects/Bloom.cpp
 
-        src/Graphics/ModelLoading/MTLMaterialLoader.cpp
-        src/Graphics/ModelLoading/OBJModelLoader.cpp
-        src/Graphics/ModelLoading/OBJModel.cpp
-        src/Graphics/Fonts/Font.cpp
-        src/Graphics/Fonts/FontDevice.cpp
-        src/Graphics/GUI/ImGuiExt.cpp
+    src/Graphics/ModelLoading/MTLMaterialLoader.cpp
+    src/Graphics/ModelLoading/OBJModelLoader.cpp
+    src/Graphics/ModelLoading/OBJModel.cpp
+    src/Graphics/Fonts/Font.cpp
+    src/Graphics/Fonts/FontDevice.cpp
+    src/Graphics/GUI/ImGuiExt.cpp
 
-        src/IO/IO.cpp
-        src/IO/Keyboard.cpp
-        src/IO/Mouse.cpp
-        src/IO/TimeType.cpp
+    src/IO/IO.cpp
+    src/IO/Keyboard.cpp
+    src/IO/Mouse.cpp
+    src/IO/TimeType.cpp
 
-        src/Utils/Math/Vector.cpp
-        src/Utils/Math/Matrix.cpp
-        src/Utils/Math/Rect.cpp
-        src/Utils/Math/Color.cpp
-        src/Utils/Math/Complex.cpp
-        src/Utils/Math/Quaternion.cpp
-        src/Utils/Math/Transform2D.cpp
-        src/Utils/Math/Transform3D.cpp
+    src/Utils/Math/Vector.cpp
+    src/Utils/Math/Matrix.cpp
+    src/Utils/Math/Rect.cpp
+    src/Utils/Math/Color.cpp
+    src/Utils/Math/Complex.cpp
+    src/Utils/Math/Quaternion.cpp
+    src/Utils/Math/Transform2D.cpp
+    src/Utils/Math/Transform3D.cpp
 
-        src/Physics/World2D.cpp
-        src/Physics/Shape2D.cpp
-        src/Physics/Body2D.cpp
-        src/Physics/Collision2D.cpp
-        src/Physics/PhysicsTransform2D.cpp
-        src/Physics/Manifold2D.cpp
-        src/Physics/SeperatingAxisSolver.cpp
-        src/Physics/CircleShape2D.cpp
-        src/Physics/CapsuleShape2D.cpp
-        src/Physics/PolygonShape2D.cpp
-        src/Physics/RectShape2D.cpp
+    src/Physics/World2D.cpp
+    src/Physics/Shape2D.cpp
+    src/Physics/Body2D.cpp
+    src/Physics/Collision2D.cpp
+    src/Physics/PhysicsTransform2D.cpp
+    src/Physics/Manifold2D.cpp
+    src/Physics/SeperatingAxisSolver.cpp
+    src/Physics/CircleShape2D.cpp
+    src/Physics/CapsuleShape2D.cpp
+    src/Physics/PolygonShape2D.cpp
+    src/Physics/RectShape2D.cpp
 
-        src/Utils/RichString.cpp
-        src/Utils/Text.cpp
-        src/Utils/Str.cpp
-        src/Utils/String.cpp
-        src/Utils/CStr.cpp
-        src/Utils/Memory.cpp
-        src/Utils/Bitwise.cpp
-        src/Utils/Hash.cpp
-        src/Utils/Range.cpp
-        src/Utils/Text/Parsing.cpp
-        src/Utils/Text/Num.cpp
-        src/Utils/Text/StringWriter.cpp
-        src/Utils/Text/Formatting.cpp
-        src/Utils/Iter/LinesIter.cpp
+    src/Utils/RichString.cpp
+    src/Utils/Text.cpp
+    src/Utils/Str.cpp
+    src/Utils/String.cpp
+    src/Utils/CStr.cpp
+    src/Utils/Memory.cpp
+    src/Utils/Bitwise.cpp
+    src/Utils/Hash.cpp
+    src/Utils/Range.cpp
+    src/Utils/Text/Parsing.cpp
+    src/Utils/Text/Num.cpp
+    src/Utils/Text/StringWriter.cpp
+    src/Utils/Text/Formatting.cpp
+    src/Utils/Iter/LinesIter.cpp
+    src/Utils/IO/Archive.cpp
 )
 source_group("Source Files" FILES ${SOURCE_FILES})
 
 set(ALL_FILES
     ${HEADER_FILES}
     ${SOURCE_FILES}
-        src/Graphics/TextureAtlas.h
-        src/Graphics/Image.h
-        src/Graphics/TextureAtlas.cpp
-        src/Graphics/Image.cpp
-        src/Graphics/GUI/Interactable.cpp
-        src/Graphics/GUI/Interactable.h
-        ../PostEffect.h
-        ../PostEffect.cpp
+    src/Graphics/TextureAtlas.h
+    src/Graphics/Image.h
+    src/Graphics/TextureAtlas.cpp
+    src/Graphics/Image.cpp
+    src/Graphics/GUI/Interactable.cpp
+    src/Graphics/GUI/Interactable.h
 )
 
 add_library(${PROJECT_NAME} STATIC ${ALL_FILES})

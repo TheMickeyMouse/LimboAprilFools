@@ -25,7 +25,7 @@ struct PostEffect {
     float innerRadius = 0, outerRadius = 0;
     fv2 aberrationOff = { 3 / 1920.0f, -2 / 1080.0f };
     fColor vignetteTint = { 0, 0 };
-    enum State { USE_ANIM, NO_ANIM, MANUAL, CAPTURE, USE_EXPOSURE, DISABLED } state = NO_ANIM;
+    enum State { USE_ANIM, NO_ANIM, MANUAL, CAPTURE, DISABLED } state = NO_ANIM;
     bool vignetteForeground = false;
     Texture2D background;
 
@@ -39,13 +39,14 @@ struct PostEffect {
 
     PostEffect() = default;
 
-    void Init();
+    void Init(LimboApp& app);
 
     void Use();
     void ApplyEffect();
 
     void Anim(LimboApp& app, float dt);
     void Reset();
-    void EnterExposure();
+    void CaptureBackground();
+    void DrawBackground(LimboApp& app);
     void Draw();
 };
