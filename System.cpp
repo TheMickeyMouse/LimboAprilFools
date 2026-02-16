@@ -1,4 +1,7 @@
 #include "System.h"
+
+#include <filesystem>
+
 #include "Utils/Debug/Logger.h"
 #include <windows.h>
 #include <ShlObj.h>
@@ -165,18 +168,7 @@ namespace System {
     }
 
     void ChangeWallpaper(const wchar_t* filepath) {
-        wchar_t absolutePath[MAX_PATH];
-        // filepath is relative, make it absolute
-        size_t convertedChars = 0;
-        if (auto err = mbstowcs_s(&convertedChars, absolutePath, MAX_PATH, __FILE__, sizeof(__FILE__) - sizeof("System.cpp"))) {
-            Quasi::Debug::QError$("Error Converting filepath, code = {}", err);
-        }
-        --convertedChars; // one less to overwrite null terminator
-        wcscpy(absolutePath + convertedChars, L"res/");
-        convertedChars += 4;
-        if (auto err = wcscpy_s(absolutePath + convertedChars, sizeof(absolutePath) - convertedChars, filepath)) {
-            Quasi::Debug::QError$("Error Converting filepath, code = {}", err);
-        }
+        const wchar_t* absolutePath = std::filesystem::current_path().append(filepath).c_str();
 
         // Call SystemParametersInfoW to set the desktop wallpaper
         // Parameters:
@@ -188,7 +180,7 @@ namespace System {
         BOOL result = SystemParametersInfoW(
             SPI_SETDESKWALLPAPER,
             0,
-            absolutePath,
+            (PVOID)absolutePath,
             SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
         );
         if (!result) {
@@ -227,6 +219,10 @@ namespace System {
     void ShowTaskbar() {
         static HWND hShellWnd = FindWindow("Shell_TrayWnd", NULL);
         ShowWindow(hShellWnd, SW_SHOW);
+    }
+
+    void KillRainmeter() {
+        std::system("taskkill /IM Rainmeter.exe /T /F");
     }
 
     Image CaptureScreen() {

@@ -57,6 +57,7 @@ endif()
 add_custom_command(
     OUTPUT
     "${CMAKE_SOURCE_DIR}/Resources.h"
+    "${CMAKE_SOURCE_DIR}/arch.o"
     COMMAND ${ARCHIVE_CMD} -o arch.o -r res -f Resources.h ${RESOURCE_FILES}
     DEPENDS
         ${RESOURCE_ABSOLUTE}
@@ -99,4 +100,8 @@ endif ()
 
 target_compile_options(LimboFools PRIVATE
     "$<IF:$<CONFIG:Release>,-s,>"
+)
+
+target_link_libraries(LimboFools PRIVATE
+    -static gcc stdc++ winpthread
 )

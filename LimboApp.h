@@ -205,11 +205,10 @@ public:
         void DrawParticles(LimboApp& app);
     };
 
-    class Finish : public Effect {
+    class Troll : public Effect {
         bool correct = true;
     public:
-        explicit Finish(float dura) : Effect(dura) {}
+        explicit Troll(bool correct = true) : Effect(0.0f), correct(correct) {}
         void Init(LimboApp& app) override;
-        void SetEnding(bool correct);
     };
 };

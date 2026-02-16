@@ -294,7 +294,7 @@ namespace Quasi::Graphics {
         }
 
         /* Create a windowed mode window and its OpenGL context */
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         // glfwWindowHint(GLFW_SAMPLES, 4);
 
@@ -328,7 +328,9 @@ namespace Quasi::Graphics {
 
         if (!window) {
             glfwTerminate();
-            GLLogger().QError$("Failed to create window");
+            const char* desc;
+            glfwGetError(&desc);
+            GLLogger().QError$("Failed to create window, error code = {}", desc);
         }
 
         /* Make the window's context current */

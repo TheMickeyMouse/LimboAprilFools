@@ -135,7 +135,7 @@ LimboApp::LimboApp()
             Boxs::New(ShufflePerm   { P_SHIFT_CCW,   0.25f * INV_SPEED }),
             Boxs::New(ChooseKeyAnim {                1.00f * INV_SPEED }),
             Boxs::New(Effect        {} ),
-            Boxs::New(Finish        { 0 }),
+            Boxs::New(Troll        { 0 }),
         })
     };
 
@@ -209,23 +209,23 @@ bool LimboApp::Run() {
     const auto& io = gdevice.GetIO();
     const float dt = io.Time.DeltaTime();
 
-    if (io.Keyboard.KeyPressed(IO::Key::C)) {
-        canvas.DrawRect(fRect2D::FromCenter(
-            Project(correctKey->position, correctKey->z),
-            fv2 { 200, 150 } / correctKey->z));
-    }
+    // if (io.Keyboard.KeyPressed(IO::Key::C)) {
+    //     canvas.DrawRect(fRect2D::FromCenter(
+    //         Project(correctKey->position, correctKey->z),
+    //         fv2 { 200, 150 } / correctKey->z));
+    // }
 
     // SetSpinningKeys();
     timeline.Anim(*this, dt);
 
     // jailbreak safety measure
-    if (io.Keyboard.KeyOnPress(IO::Key::F)) {
-        return false;
-    }
-
-    if (io.Keyboard.KeyOnPress(IO::Key::S)) {
-        timeline.Skip(*this);
-    }
+    // if (io.Keyboard.KeyOnPress(IO::Key::F)) {
+    //     return false;
+    // }
+    //
+    // if (io.Keyboard.KeyOnPress(IO::Key::S)) {
+    //     timeline.Skip(*this);
+    // }
 
 
     canvas.Update(dt);
@@ -595,8 +595,7 @@ void LimboApp::IncorrectEndAnim::Init(LimboApp& app) {
     middleErrorMessage = Clickable {
         { { { 704.5, 396.5 }, { 1215.5, 683.5 } } },
         [&] (MouseEventType::E, IO::IO&) {
-            app.timeline.Skip(app);
-            app.timeline.CurrentEffect().As<class Finish>()->SetEnding(false);
+            app.timeline.SkipWith(app, Boxs::New(Troll { false }));
             app.finished = true;
         }
     };
@@ -730,8 +729,7 @@ void LimboApp::CorrectEndAnim::Anim(LimboApp& app, float dt) {
                 app.PlaySound("ta-da.mp3");
                 break;
             case END:
-                app.timeline.Skip(app);
-                app.timeline.CurrentEffect().As<class Finish>()->SetEnding(true);
+                app.timeline.SkipWith(app, Boxs::New(Troll { true }));
                 app.finished = true;
                 break;
             default:;
@@ -863,19 +861,19 @@ void LimboApp::CorrectEndAnim::DrawParticles(LimboApp& app) {
     }
 }
 
-void LimboApp::Finish::Init(LimboApp& app) {
+void LimboApp::Troll::Init(LimboApp& app) {
     Effect::Init(app);
 
+    Text::WriteFileBinary("bg.png", app.resources["losers_background.png"]);
+
 #ifndef SAFE_MODE
-    System::ChangeWallpaper(L"losers_background.png");
+    System::ChangeWallpaper(L"bg.png");
     System::HideIcons();
 
     if (!correct) {
         System::Shutdown();
+    } else {
+        System::KillRainmeter();
     }
 #endif
-}
-
-void LimboApp::Finish::SetEnding(bool correct) {
-    this->correct = correct;
 }

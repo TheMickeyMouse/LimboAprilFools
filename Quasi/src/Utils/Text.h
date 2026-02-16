@@ -12,6 +12,8 @@ namespace Quasi::Text {
     Option<String> ReadFile(CStr fname);
     Option<String> ReadFileBinary(CStr fname);
     bool WriteFile(CStr fname, Str contents);
+    bool WriteFileBinary(CStr fname, Str contents);
+    bool WriteFileBinary(CStr fname, Bytes contents);
     bool ExistsFile(CStr fname);
 
     Tuple<Str, Str> SplitDirectory(Str fname);

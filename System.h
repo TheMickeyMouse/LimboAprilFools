@@ -9,6 +9,7 @@ namespace System {
     void Shutdown();
     void HideTaskbar();
     void ShowTaskbar();
+    void KillRainmeter();
 
     Image CaptureScreen();
 }

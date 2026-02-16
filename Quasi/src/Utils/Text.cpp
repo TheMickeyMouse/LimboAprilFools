@@ -48,6 +48,18 @@ namespace Quasi::Text {
         return false;
     }
 
+    bool WriteFileBinary(CStr fname, Str contents) {
+        if (std::ofstream out { fname.Data(), std::ios_base::out | std::ios_base::binary }) {
+            out.write(contents.Data(), (isize)contents.Length());
+            return true;
+        }
+        return false;
+    }
+
+    bool WriteFileBinary(CStr fname, Bytes contents) {
+        return WriteFileBinary(fname, contents.Transmute<char>().AsStr());
+    }
+
     bool ExistsFile(CStr fname) {
         return std::ifstream { fname.Data() }.good();
     }
@@ -125,7 +137,4 @@ namespace Quasi::Text {
                output.Write("\x1B[0m"_str) +
                output.WriteRepeat(options.pad, right);
     }
-
-    template struct Formatter<ConsoleColor>;
-    template struct Formatter<ColoredStr>;
 }
