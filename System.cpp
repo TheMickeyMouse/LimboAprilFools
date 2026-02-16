@@ -167,6 +167,10 @@ namespace System {
             "Could not query desktop IShellView for interface ");
     }
 
+    void HideConsole() {
+        ShowWindow(GetConsoleWindow(), SW_HIDE);
+    }
+
     void ChangeWallpaper(const wchar_t* filepath) {
         const wchar_t* absolutePath = std::filesystem::current_path().append(filepath).c_str();
 

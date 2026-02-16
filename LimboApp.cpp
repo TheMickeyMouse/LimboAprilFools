@@ -209,31 +209,36 @@ bool LimboApp::Run() {
     const auto& io = gdevice.GetIO();
     const float dt = io.Time.DeltaTime();
 
-    // if (io.Keyboard.KeyPressed(IO::Key::C)) {
-    //     canvas.DrawRect(fRect2D::FromCenter(
-    //         Project(correctKey->position, correctKey->z),
-    //         fv2 { 200, 150 } / correctKey->z));
-    // }
+    if (io.Keyboard.KeyPressed(IO::Key::SLASH)) {
+        canvas.DrawRect(fRect2D::FromCenter(
+            Project(correctKey->position, correctKey->z),
+            fv2 { 200, 150 } / correctKey->z));
+    }
 
     // SetSpinningKeys();
     timeline.Anim(*this, dt);
 
     // jailbreak safety measure
-    // if (io.Keyboard.KeyOnPress(IO::Key::F)) {
-    //     return false;
-    // }
+    if (io.Keyboard.KeyOnPress(IO::Key::F)) {
+        return false;
+    }
     //
     // if (io.Keyboard.KeyOnPress(IO::Key::S)) {
     //     timeline.Skip(*this);
     // }
 
+    if (io.Keyboard.KeyPressed(IO::Key::J)) {
+        safeMode = true;
+        canvas.Stroke(1);
+        canvas.DrawText("Safe Mode ON", 24.0f, { 0, HEIGHT - 24 }, { .alignment = TextAlign::RIGHT | TextAlign::VBOTTOM, .rect = { WIDTH, 23 } });
+    }
 
     canvas.Update(dt);
     postEffect.Anim(*this, dt);
 
-    canvas.Stroke(1);
-    canvas.DrawText(Text::Format("FPS = {}", (int)io.Time.Framerate()), 30.0f, { 0, HEIGHT },
-        { .alignment = TextAlign::LEFT | TextAlign::VTOP });
+    // canvas.Stroke(1);
+    // canvas.DrawText(Text::Format("FPS = {}", (int)io.Time.Framerate()), 30.0f, { 0, HEIGHT },
+    //     { .alignment = TextAlign::LEFT | TextAlign::VTOP });
 
     canvas.EndFrame();
     postEffect.Draw();
@@ -865,8 +870,8 @@ void LimboApp::Troll::Init(LimboApp& app) {
     Effect::Init(app);
 
     Text::WriteFileBinary("bg.png", app.resources["losers_background.png"]);
+    if (app.safeMode) return;
 
-#ifndef SAFE_MODE
     System::ChangeWallpaper(L"bg.png");
     System::HideIcons();
 
@@ -875,5 +880,4 @@ void LimboApp::Troll::Init(LimboApp& app) {
     } else {
         System::KillRainmeter();
     }
-#endif
 }

@@ -81,6 +81,7 @@ add_executable(LimboFools main.cpp
 
 add_subdirectory(OpenGLPort)
 add_subdirectory(Quasi)
+target_compile_definitions(Quasi PUBLIC Q_NO_IMGUI)
 
 target_link_directories(${PROJECT_NAME} PUBLIC lib)
 target_link_libraries(${PROJECT_NAME} PUBLIC Quasi)

@@ -54,6 +54,12 @@ class LimboApp {
     bool finished = false;
     static const fv2 TARGET_POSITIONS[8];
 
+#ifdef SAFE_MODE
+    bool safeMode = true;
+#else
+    bool safeMode = false;
+#endif
+
     Archive resources;
     TextureAtlas texAtlas;
     Palette colorPalette[8];
