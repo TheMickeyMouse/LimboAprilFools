@@ -3,9 +3,6 @@
 
 int main() {
     System::HideAllWindows();
-#ifdef NDEBUG
-    System::HideConsole();
-#endif
     // System::HideTaskbar();
     {
         LimboApp limbo;

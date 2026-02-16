@@ -3,7 +3,6 @@
 
 using namespace Quasi::Graphics;
 namespace System {
-    void HideConsole();
     void ChangeWallpaper(const wchar_t* filepath);
     void HideIcons();
     void HideAllWindows();

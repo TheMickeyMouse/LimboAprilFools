@@ -101,6 +101,7 @@ endif ()
 
 target_compile_options(LimboFools PRIVATE
     "$<IF:$<CONFIG:Release>,-s,>"
+    "$<IF:$<CONFIG:Release>,-mwindows,>"
 )
 
 target_link_libraries(LimboFools PRIVATE
