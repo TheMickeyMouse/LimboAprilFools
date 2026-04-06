@@ -65,7 +65,7 @@ add_custom_command(
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(LimboFools main.cpp
+add_executable(LimboFools WIN32 main.cpp
     LimboApp.cpp
     LimboApp.h
     miniaudio/miniaudio.cpp
@@ -101,7 +101,6 @@ endif ()
 
 target_compile_options(LimboFools PRIVATE
     "$<IF:$<CONFIG:Release>,-s,>"
-    "$<IF:$<CONFIG:Release>,-mwindows,>"
 )
 
 target_link_libraries(LimboFools PRIVATE
